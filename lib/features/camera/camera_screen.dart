@@ -5,6 +5,8 @@ import 'camera_view_model.dart';
 import 'widgets/pose_overlay.dart';
 import 'widgets/pose_thumb_strip.dart';
 import 'widgets/camera_controls.dart';
+import '../filter/filter_view_model.dart';
+import '../filter/filter_panel.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -44,9 +46,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 相机画面
-        Center(child: CameraPreview(controller)),
-        // 姿势轮廓叠加
+        // 双指缩放手势层（姿势轮廓不跟随缩放）
+        GestureDetector(
+          onScaleUpdate: (details) {
+            final zoom = (state.currentZoom * details.scale).clamp(1.0, 5.0);
+            notifier.setZoom(zoom);
+          },
+          child: Center(child: CameraPreview(controller)),
+        ),
+        // 姿势轮廓叠加（不跟随缩放）
         const PoseOverlay(),
         // 底部姿势缩略图
         const Positioned(
@@ -63,7 +71,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           child: CameraControls(
             cameraIndex: state.cameraIndex,
             onCameraSwitch: (index) => notifier.switchCamera(index),
-            onCapture: () => notifier.takePicture(),
+            onCapture: () async {
+              final path = await notifier.takePicture();
+              if (path != null && context.mounted) {
+                ref.read(filterViewModelProvider.notifier).setImage(path);
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => const FilterPanel(),
+                );
+              }
+            },
           ),
         ),
       ],
