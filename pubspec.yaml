@@ -1,0 +1,29 @@
+name: easy_beauty_cam
+description: 让不会拍照的人轻松指挥模特摆出好看姿势的相机应用
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  camera: ^0.10.5+9
+  image: ^4.1.3
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.2
+  http: ^1.2.0
+  go_router: ^13.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - resources/poses/
+    - assets/poses/
