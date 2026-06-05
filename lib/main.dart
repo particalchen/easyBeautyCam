@@ -8,9 +8,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
 
-  // 启动时同步远程姿势
-  final poseRepo = PoseRepository();
-  await poseRepo.syncRemotePoses();
+  // 启动时同步远程姿势（非阻塞，失败不影响 App启动）
+  try {
+    final poseRepo = PoseRepository();
+    // 异步同步，不阻塞 UI
+    poseRepo.syncRemotePoses();
+  } catch (e) {
+    // 忽略同步错误
+  }
 
   runApp(const ProviderScope(child: EasyBeautyCamApp()));
 }

@@ -32,17 +32,32 @@ class PoseManagerState {
   }
 }
 
+// 内置默认姿势（resources/poses/ 目录下的图片）
+final List<PoseModel> _defaultLocalPoses = [
+  const PoseModel(
+    id: 'local_01',
+    name: '户外姿势1',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_01.png',
+    isLocal: true,
+  ),
+];
+
 class PoseManager extends StateNotifier<PoseManagerState> {
   final PoseRepository _repository;
 
-  PoseManager(this._repository) : super(const PoseManagerState());
+  PoseManager(this._repository) : super(const PoseManagerState(
+    poses: _defaultLocalPoses,
+  ));
 
   Future<void> initialize() async {
     state = state.copyWith(isLoading: true);
     final local = await _repository.loadLocalPoses();
     final remote = await _repository.syncRemotePoses();
+    //合并：默认内置 + 用户本地添加 + 远程获取
+    final allPoses = [..._defaultLocalPoses, ...local, ...remote];
     state = state.copyWith(
-      poses: [...local, ...remote],
+      poses: allPoses,
       isLoading: false,
     );
   }
