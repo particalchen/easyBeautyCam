@@ -20,7 +20,7 @@ class _PhotoAlbumScreenState extends State<PhotoAlbumScreen> {
   }
 
   Future<void> _loadPhotos() async {
-    final permission = await PhotoManager.requestPermission(
+    final permission = await PhotoManager.requestPermissionExtend(
       requestOption: const PermissionRequestOption(
         iosAccessLevel: IosAccessLevel.readWrite,
       ),
