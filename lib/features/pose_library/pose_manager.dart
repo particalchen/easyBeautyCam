@@ -33,8 +33,8 @@ class PoseManagerState {
 }
 
 // 内置默认姿势（resources/poses/ 目录下的图片）
-final List<PoseModel> _defaultLocalPoses = [
-  const PoseModel(
+const List<PoseModel> _defaultLocalPoses = [
+  PoseModel(
     id: 'local_01',
     name: '户外姿势1',
     category: 'outdoor',
@@ -46,7 +46,7 @@ final List<PoseModel> _defaultLocalPoses = [
 class PoseManager extends StateNotifier<PoseManagerState> {
   final PoseRepository _repository;
 
-  PoseManager(this._repository) : super(const PoseManagerState(
+  PoseManager(this._repository) : super(PoseManagerState(
     poses: _defaultLocalPoses,
   ));
 
