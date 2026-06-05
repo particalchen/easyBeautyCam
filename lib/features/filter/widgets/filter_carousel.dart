@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../filter_view_model.dart';
+import '../filter_view_model.dart';
 import '../../../services/image_processing_service.dart';
 import '../../../core/theme/app_theme.dart';
 

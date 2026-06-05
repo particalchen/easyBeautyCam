@@ -19,7 +19,7 @@ class CameraService {
 
   Future<void> setZoom(double zoom) async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    await _controller!.setZoomFactor(zoom);
+    await _controller!.setZoomLevel(zoom);
   }
 
   Future<void> switchCamera(int index) async {
