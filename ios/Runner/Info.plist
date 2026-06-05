@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>EasyBeautyCam 需要使用相机来拍照和显示姿势轮廓</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EasyBeautyCam 需要访问相册来保存和处理照片</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>EasyBeautyCam 需要保存处理后的照片到相册</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
