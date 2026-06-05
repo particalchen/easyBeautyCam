@@ -1,0 +1,196 @@
+# EasyBeautyCam 项目备忘
+
+> 创建时间：2026-06-05
+> 最后更新：2026-06-05
+
+---
+
+## 一、项目概述
+
+**项目名称**：EasyBeautyCam
+**一句话描述**：让不会拍照的男友/摄影师，轻松指挥模特摆出好看姿势的跨平台（iOS / Android / 鸿蒙）相机应用。
+**技术栈**：Flutter / Riverpod / camera / image / Hive / go_router / photo_manager
+**代码仓库**：https://github.com/particalchen/easyBeautyCam
+
+---
+
+## 二、需求回顾
+
+### 2.1 核心功能
+
+1. **姿势轮廓叠加**：白色半透明马克笔风格线条（rgba(255,255,255,0.55)），覆盖在相机画面上，包含脸朝向、手部动作、上半身姿态
+2. **姿势选择**：底部横向滑动缩略图条，点击切换
+3. **相机变焦**：1x/2x/3x 镜头切换按钮 + 双指 pinch 缩放（姿势轮廓不跟随缩放）
+4. **即时拍照**：单手拇指操作
+5. **滤镜处理**：拍完弹出滤镜选择，默认推荐一个，左右滑动切换
+6. **美颜调整**：磨皮/美白/瘦脸，拍后处理，不开实时美颜
+7. **照片保存**：处理后保存到相册
+8. **内置姿势库**：内置 4 个姿势 + 启动时远程下载更多
+
+### 2.2 分期功能
+
+**P0（基础）**：上述核心功能
+**P1（用户自定义）**：自定义姿势导入、姿势管理
+**P2（社交+智能）**：姿势分享、场景识别推荐、被拍者监看
+
+---
+
+## 三、技术设计
+
+### 3.1 设计规范
+
+**色彩**：
+- 主色：`#FF8A7A`（珊瑚粉）
+- 渐变：`#FFB4A2 → #FF8A7A`
+- 背景：`#FFFAF8`（暖白）
+- 姿势线条：`rgba(255,255,255,0.55)`（白色半透明）
+
+**字体**：SF Pro Display / SF Pro Text，iOS 系统字体
+
+### 3.2 目录结构
+
+```
+lib/
+├── main.dart
+├── app.dart
+├── core/
+│   ├── theme/app_theme.dart
+│   └── constants/app_constants.dart
+├── features/
+│   ├── camera/
+│   │   ├── camera_screen.dart
+│   │   ├── camera_view_model.dart
+│   │   └── widgets/
+│   │       ├── pose_overlay.dart
+│   │       ├── pose_thumb_strip.dart
+│   │       ├── camera_controls.dart
+│   │       └── capture_button.dart
+│   ├── filter/
+│   │   ├── filter_panel.dart
+│   │   ├── filter_view_model.dart
+│   │   └── widgets/
+│   │       ├── filter_carousel.dart
+│   │       └── beauty_slider.dart
+│   ├── pose_library/
+│   │   ├── pose_model.dart
+│   │   ├── pose_repository.dart
+│   │   └── pose_manager.dart
+│   └── photo_album/
+│       └── photo_album_screen.dart
+└── services/
+    ├── camera_service.dart
+    ├── image_processing_service.dart
+    └── pose_download_service.dart
+resources/poses/ # 内置姿势 PNG（手工提供）
+assets/poses/       # 远程下载的姿势
+```
+
+### 3.3 滤镜方案
+
+5 种预设滤镜（Color Matrix 实现，本地处理）：
+- 原图 / 珊瑚 / 港风 / 日系 / 胶片
+
+### 3.4 美颜方案
+
+- 磨皮：高斯模糊 + 叠加
+- 美白：亮度调整
+- 瘦脸：（预留，算法未完整实现）
+
+---
+
+## 四、Git提交历史
+
+| Commit | 描述 |
+|--------|------|
+| `c498e8a` | init: empty commit to start history |
+| `be2ffb0` | feat: 初始化 Flutter 项目，配置主题和常量 |
+| `7c8091e` | feat: 姿势数据模型、仓储和远程下载服务 |
+| `f1d8013` | feat: 相机服务和取景框主页面 |
+| `385ed13` | feat: 姿势轮廓叠加 Widget |
+| `269dca0` | feat: 姿势缩略图横向滑动条 |
+| `5169ca2` | feat: 相机控制栏和拍照按钮 |
+| `82107e9` | feat: 图片处理服务（滤镜+美颜） |
+| `0c3e257` | feat: 滤镜浮层 UI 和美颜滑杆 |
+| `a5b9c29` | feat: 相册浏览页面 |
+| `1a31ffd` | feat: 双指缩放 + 拍照触发滤镜浮层 |
+| `c49f2f2` | feat: 启动时同步远程姿势 |
+| `12d7a0e` | fix: 修复编译错误 - 添加photo_manager依赖、修正import路径、修复setZoomLevel和滤镜ColorMatrix实现 |
+| `7b2cec0` | fix: photo_manager v3 API修复 - requestPermission参数和IosAccessLevel |
+| `6398c48` | fix: PhotoManager.requestPermission → requestPermissionExtend for photo_manager v3 |
+| `ed0dc14` | fix: 修复白屏问题 - HTTP添加5秒超时+异常处理+内置默认姿势 |
+| `9d3d0cd` | fix: pose_manager const表达式错误 |
+| `a60e3e3` | fix: iOS Info.plist添加相机和相册权限描述 |
+
+---
+
+## 五、遇到的问题及修复记录
+
+### 5.1 编译错误
+
+| 问题 | 原因 | 修复 |
+|------|------|------|
+| `photo_manager` 包缺失 | pubspec.yaml 未声明 | 添加 `photo_manager: ^3.0.0` |
+| filter_carousel/beauty_slider import 路径错误 | `../../filter_view_model.dart` 多了一级 |改为 `../filter_view_model.dart` |
+| `CameraController.setZoomFactor` 不存在 | camera 包版本 API 不同 | 改为 `setZoomLevel` |
+| `img.ColorFilter.mat` 不存在 | image 包无此方法 | 手动逐像素应用 Color Matrix |
+| `PhotoManager.requestPermission` 不存在 | photo_manager v3 API变更 | 改为 `requestPermissionExtend` |
+
+### 5.2 iOS 运行时崩溃
+
+| 问题 | 原因 | 修复 |
+|------|------|------|
+| App 启动 crash（abort_with_payload） | iOS 相机权限未在 Info.plist 声明 | 添加 NSCameraUsageDescription 等3 个 key |
+| 白屏 |1. 远程请求无超时一直挂起 2. 无内置姿势列表 3. 网络错误无异常处理 | 加5 秒超时+异常捕获+内置默认姿势 |
+
+### 5.3 其他
+
+| 问题 | 修复 |
+|------|------|
+| pose_manager const 表达式错误 | `_defaultLocalPoses` 改为 `const List`，`PoseManagerState` 去掉 `const` |
+| main.dart 远程同步阻塞 UI | 改为异步不阻塞，fire-and-forget 模式 |
+
+---
+
+## 六、iOS 配置备注
+
+**Bundle Identifier**：需在 Xcode 中配置
+**签名**：需登录 Apple ID 并选择 Team
+**Info.plist 权限 Key**：
+- `NSCameraUsageDescription` - 相机
+- `NSPhotoLibraryUsageDescription` - 相册读取
+- `NSPhotoLibraryAddUsageDescription` - 相册保存
+
+---
+
+## 七、待办事项
+
+###7.1 P0 未完成项
+
+- [ ] `resources/poses/` 下还需要 3 张内置姿势图（目前只有 1 张 `pose_outdoor_01.png`）
+- [ ] `poseRemoteBaseUrl` 目前是 `https://example.com/poses`，需替换为实际服务器地址
+- [ ] 滤镜保存到相册的完整流程（目前 filter_view_model 的 saveProcessedImage 未真正写入相册）
+- [ ] 双指缩放 `onScaleUpdate` 逻辑需要正确累计缩放值（当前实现有 bug，scale 是增量不是绝对值）
+
+### 7.2 P1/P2
+
+- [ ] 用户自定义姿势导入（相册选择图片）
+- [ ] 姿势分享/导入（需要服务器端 API）
+- [ ] 场景识别推荐（需要相机画面分析和 API）
+
+### 7.3 配置
+
+- [ ] GitHub remote 已设置（https://github.com/particalchen/easyBeautyCam.git），推送认证待解决
+- [ ] photo_manager 的 iOS Podfile 配置（`platform :ios, '12.0'`）
+
+---
+
+## 八、相关人员
+
+- 项目所有者：partical
+
+---
+
+## 九、参考文档
+
+- 设计规格书：`docs/superpowers/specs/2026-06-04-easyBeautyCam-design.md`
+- 实现计划：`docs/superpowers/plans/2026-06-04-easyBeautyCam-plan.md`
