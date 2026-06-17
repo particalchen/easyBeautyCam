@@ -9,6 +9,7 @@ import 'camera_view_model.dart';
 import 'widgets/pose_overlay.dart';
 import 'widgets/pose_thumb_strip.dart';
 import 'widgets/app_circle_icon_button.dart';
+import 'widgets/app_menu_sheet.dart';
 import 'widgets/camera_controls.dart';
 import '../filter/filter_view_model.dart';
 import '../filter/filter_panel.dart';
@@ -42,6 +43,29 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     Future.microtask(() => ref.read(cameraViewModelProvider.notifier).initialize());
   }
 
+  /// 弹出菜单 BottomSheet —— 姿势库 / 设置 / 关于
+  void _openMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => AppMenuSheet(
+        onPoseLibrary: () {
+          Navigator.of(sheetContext).pop();
+          // TODO: 跳姿势库（待 P1 阶段）
+        },
+        onSettings: () {
+          Navigator.of(sheetContext).pop();
+          // TODO: 跳设置页（待 P1 阶段）
+        },
+        onAbout: () {
+          Navigator.of(sheetContext).pop();
+          // TODO: 跳关于页（待 P1 阶段）
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -58,9 +82,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu, size: 24),
           tooltip: l10n.cameraMenu,
-          onPressed: () {
-            // TODO: 打开侧边菜单
-          },
+          onPressed: _openMenu,
         ),
         title: Text(
           l10n.appTitle,

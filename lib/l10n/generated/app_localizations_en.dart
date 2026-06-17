@@ -61,4 +61,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get beautySlim => 'Slim';
+
+  @override
+  String get menuTitle => 'Menu';
+
+  @override
+  String get menuPoseLibrary => 'Pose Library';
+
+  @override
+  String get menuSettings => 'Settings';
+
+  @override
+  String get menuAbout => 'About';
 }

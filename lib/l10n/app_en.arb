@@ -22,5 +22,10 @@
 
   "beautySmooth": "Smooth",
   "beautyWhiten": "Whiten",
-  "beautySlim": "Slim"
+  "beautySlim": "Slim",
+
+  "menuTitle": "Menu",
+  "menuPoseLibrary": "Pose Library",
+  "menuSettings": "Settings",
+  "menuAbout": "About"
 }

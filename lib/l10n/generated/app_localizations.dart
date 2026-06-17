@@ -205,6 +205,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'瘦脸'**
   String get beautySlim;
+
+  /// 菜单弹层标题
+  ///
+  /// In zh, this message translates to:
+  /// **'菜单'**
+  String get menuTitle;
+
+  /// 浏览/管理姿势模板
+  ///
+  /// In zh, this message translates to:
+  /// **'姿势库'**
+  String get menuPoseLibrary;
+
+  /// 应用设置入口
+  ///
+  /// In zh, this message translates to:
+  /// **'设置'**
+  String get menuSettings;
+
+  /// 关于应用
+  ///
+  /// In zh, this message translates to:
+  /// **'关于'**
+  String get menuAbout;
 }
 
 class _AppLocalizationsDelegate

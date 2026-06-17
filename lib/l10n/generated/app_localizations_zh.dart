@@ -61,4 +61,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get beautySlim => '瘦脸';
+
+  @override
+  String get menuTitle => '菜单';
+
+  @override
+  String get menuPoseLibrary => '姿势库';
+
+  @override
+  String get menuSettings => '设置';
+
+  @override
+  String get menuAbout => '关于';
 }
