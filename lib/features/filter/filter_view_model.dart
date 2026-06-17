@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/image_processing_service.dart';
+import '../../services/photo_album_writer.dart';
 import '../../../core/constants/app_constants.dart';
 
 final imageProcessingServiceProvider = Provider<ImageProcessingService>((ref) {
@@ -9,7 +10,10 @@ final imageProcessingServiceProvider = Provider<ImageProcessingService>((ref) {
 });
 
 final filterViewModelProvider = StateNotifierProvider<FilterViewModel, FilterViewModelState>((ref) {
-  return FilterViewModel(ref.watch(imageProcessingServiceProvider));
+  return FilterViewModel(
+    ref.watch(imageProcessingServiceProvider),
+    ref.watch(photoAlbumWriterProvider),
+  );
 });
 
 class FilterViewModelState {
@@ -50,8 +54,10 @@ class FilterViewModelState {
 
 class FilterViewModel extends StateNotifier<FilterViewModelState> {
   final ImageProcessingService _processingService;
+  final PhotoAlbumWriter _photoAlbumWriter;
 
-  FilterViewModel(this._processingService) : super(const FilterViewModelState());
+  FilterViewModel(this._processingService, this._photoAlbumWriter)
+      : super(const FilterViewModelState());
 
   void setImage(String path) {
     state = state.copyWith(imagePath: path);
@@ -73,17 +79,25 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     state = state.copyWith(slim: value);
   }
 
+  /// 处理并写入相册：
+  /// 1. 读原图字节
+  /// 2. 走 ImageProcessingService（滤镜 + 美颜）→ 拿到 PNG bytes
+  /// 3. 写真册（filename: easy_beauty_<timestamp>.png）
+  /// 4. 返回写入的相册文件路径（用原图 path 作占位返回，UI 不展示）
   Future<String?> saveProcessedImage() async {
     if (state.imagePath == null) return null;
     state = state.copyWith(isProcessing: true);
 
-    final bytes = await _processingService.processImage(
+    final processed = await _processingService.processImage(
       await _readImageBytes(state.imagePath!),
       filter: state.selectedFilter,
       smooth: state.smooth,
       whiten: state.whiten,
       slim: state.slim,
     );
+
+    final filename = 'easy_beauty_${DateTime.now().millisecondsSinceEpoch}.png';
+    await _photoAlbumWriter.saveImage(processed, filename: filename);
 
     state = state.copyWith(isProcessing: false);
     return state.imagePath;
