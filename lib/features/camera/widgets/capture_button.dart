@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
 
+/// 快门按钮 —— 70pt 圆形，珊瑚渐变 + 珊瑚色软阴影
+///
+/// 设计：DESIGN.md Components › Shutter Button
 class CaptureButton extends StatelessWidget {
   final VoidCallback onPressed;
 
@@ -11,28 +15,36 @@ class CaptureButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 70,
-        height: 70,
+        width: AppSpacing.shutterSize,
+        height: AppSpacing.shutterSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd,
+            ],
           ),
+          // 软阴影：低透明度 + 珊瑚色调
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.3),
-              blurRadius: 8,
+              color: AppColors.primary.withOpacity(0.30),
+              blurRadius: 12,
               spreadRadius: 2,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Container(
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
+        child: Center(
+          child: Container(
+            width: AppSpacing.shutterSize - 16,
+            height: AppSpacing.shutterSize - 16,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.95),
+            ),
           ),
         ),
       ),
