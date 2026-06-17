@@ -1,30 +1,36 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// 纯 Dart smoke test —— 不依赖 camera / photo_manager 等 plugin，
+// 主要用来挡 token / theme 配置的回归。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:easy_beauty_cam/main.dart';
+import 'package:easy_beauty_cam/core/theme/app_colors.dart';
+import 'package:easy_beauty_cam/core/theme/app_spacing.dart';
+import 'package:easy_beauty_cam/core/theme/app_theme.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('AppSpacing tokens', () {
+    test('sm == 8 (回归保护：camera / filter / beauty 视图都依赖此 token)', () {
+      expect(AppSpacing.sm, 8);
+    });
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  group('AppColors tokens', () {
+    test('background 不为空', () {
+      expect(AppColors.background, isA<Color>());
+    });
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  group('AppTheme.lightTheme', () {
+    test('能正常构造', () {
+      final theme = AppTheme.lightTheme;
+      expect(theme, isA<ThemeData>());
+      expect(theme.useMaterial3, isTrue);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('primary 来自 AppColors.primary', () {
+      final theme = AppTheme.lightTheme;
+      expect(theme.colorScheme.primary, AppColors.primary);
+    });
   });
 }

@@ -149,6 +149,48 @@ assets/poses/       # 远程下载的姿势
 | pose_manager const 表达式错误 | `_defaultLocalPoses` 改为 `const List`，`PoseManagerState` 去掉 `const` |
 | main.dart 远程同步阻塞 UI | 改为异步不阻塞，fire-and-forget 模式 |
 
+### 5.4 错误处理教训总结
+
+**教训 1：依赖包版本变更要第一时间查文档**
+- 问题：`photo_manager` 从 v2 升级到 v3 后，`requestPermission` 被删除，改用 `requestPermissionExtend`；`camera` 包的 `setZoomFactor` 改名 `setZoomLevel`
+- 教训：Flutter 包升级时不要只看 pub.dev 的版本号，要直接读 pub-cache 里的源码确认实际 API。API 文档可能过时，源码不会说谎。
+- 预防：遇到编译错误先怀疑包版本 API 变更，优先查源码而不是搜索引擎
+
+**教训 2：网络请求永远要设超时**
+- 问题：启动时从 `https://example.com/poses` 下载姿势列表，没有任何超时设置，网络一慢就永久挂起，UI 线程卡死，白屏
+- 教训：所有 HTTP 请求必须加 `.timeout(const Duration(seconds: N))`，N 根据场景决定（5s/10s/30s）
+- 预防：Fire-and-forget 的异步请求也要加超时，防止极端情况下拖累主线程
+
+**教训 3：UI 启动路径上不能有任何同步阻塞**
+- 问题：`main.dart` 里 `poseRepo.syncRemotePoses()` 是同步等待的，导致 App 启动停在白屏
+- 教训：启动时需要做的事情分成两类：必须成功的（初始化 Hive 等）用 `await`；可失败的（远程同步等）用 `try/catch` 包住并 fire-and-forget
+- 预防：任何网络请求、文件 I/O 在 main() 里都必须是异步非阻塞的
+
+**教训 4：硬编码 fallback 是防御性编程的核心**
+- 问题：没有任何内置姿势数据时，如果远程请求失败，App 完全空白
+- 教训：关键数据（默认姿势、默认配置）要有硬编码的 fallback，不能100%依赖网络或磁盘
+- 预防：每层数据获取都要有降级方案：远程失败用本地，本地失败用硬编码
+
+**教训 5：iOS 权限必须在 Info.plist 声明，不能靠运行时提示**
+- 问题：相机权限未在 Info.plist 声明，导致 App 一启动就被 iOS 杀掉（abort_with_payload）
+- 教训：Flutter iOS 的权限声明只能通过 Info.plist，代码里的 `requestPermission` 调用是第二步，第一步是 plist 里的 Description Key
+- 预防：相机、相册、定位等权限，在写第一行相机相关代码之前就要加上 Info.plist 条目
+
+**教训 6：import 路径数清楚层级关系**
+- 问题：`lib/features/filter/widgets/filter_carousel.dart` 里写 `../../filter_view_model.dart`，多跳了一级
+- 教训：相对路径 import 时，从当前文件位置出发，数清楚到目标文件需要多少个 `..`。`../` 是一级，`../../` 是两级。宁可写完整的 package 路径（`package:easyBeautyCam/features/filter/filter_view_model.dart`）也不要因小失大
+- 预防：写完 import 后立刻检查是否有红色报错，不要等编译
+
+**教训 7：Flutter 的 Color Matrix 没有内置工厂，要手写实现**
+- 问题：以为 `image` 包有 `ColorFilter.mat` 或者类似的滤镜矩阵工厂，实际上不存在
+- 教训：Flutter 图像处理三件套（`image`、`camera`、`photo_manager`）的 API 细节要和文档反复核对，第三方包的实现往往比想象中简陋
+- 预防：涉及图像像素操作前，先写一个最小原型验证可行性，不要假设某个 API 存在
+
+**教训 8：const 表达式里的变量不能是 final**
+- 问题：`const PoseManagerState(poses: _defaultLocalPoses)` 报错，因为 `_defaultLocalPoses` 是 `final List` 不是 `const List`
+- 教训：const 上下文中使用的任何变量或表达式本身都必须是 const（包括 List literal、Map literal、对象构造）
+- 预防：已知会在 const 上下文中使用的 List/Map，优先声明为 `const List<T> [...]` 而非 `final List<T> = [...]`
+
 ---
 
 ## 六、iOS 配置备注
