@@ -62,5 +62,29 @@ void main() {
       expect(size.width, 64);
       expect(size.height, 64);
     });
+
+    testWidgets('渲染传入的 icon 子树', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: AppCircleIconButton(
+                icon: Icons.photo_library_outlined,
+                onPressed: () {},
+                size: 56,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(AppCircleIconButton),
+          matching: find.byIcon(Icons.photo_library_outlined),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }
