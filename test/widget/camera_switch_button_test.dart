@@ -55,5 +55,20 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('onPressed 为 null 时点击不崩（与 AppCircleIconButton 对齐）', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: CameraSwitchButton(onPressed: null),
+            ),
+          ),
+        ),
+      );
+      // 不应崩即可
+      await tester.tap(find.byType(CameraSwitchButton));
+      await tester.pump();
+    });
   });
 }
