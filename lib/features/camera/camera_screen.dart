@@ -33,6 +33,9 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen> {
+  /// 姿势缩略图条距底部控制栏的垂直间距
+  static const double _kPoseStripGap = 32;
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +68,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: 4),
             child: AppCircleIconButton(
               icon: Icons.photo_library_outlined,
               onPressed: () => context.push('/album'),
@@ -109,7 +112,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         Positioned(
           left: 0,
           right: 0,
-          bottom: AppSpacing.thumbHotzone + AppSpacing.shutterSize + 32, // 控制栏上方
+          bottom: AppSpacing.thumbHotzone + AppSpacing.shutterSize + _kPoseStripGap, // 控制栏上方
           child: Visibility(
             visible: state.cameraIndex != 1,
             maintainState: true,
