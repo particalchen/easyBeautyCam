@@ -1,7 +1,35 @@
 # EasyBeautyCam 项目备忘
 
 > 创建时间：2026-06-05
-> 最后更新：2026-06-05
+> 最后更新：2026-06-17
+
+---
+
+## 〇、最新进度（2026-06-17）
+
+### A 相机主屏 UI 重构 ✅ 完成（9 commits, f1aca83..b4a8d9c）
+- iOS 风格布局：焦段行 / 拍照按钮 / 相机切换按钮 / AppBar
+- 相机切换按钮与相册按钮视觉统一（AppCircleIconButton）
+- 前置相机自动隐藏姿势缩略图条 + 焦段行只显示 1x
+- 21 个 widget test 全过
+
+### B-F 子项目 ✅ 全部完成（7 commits, f42e33e..7deb6b2）
+- **B 拍后编辑页**：FilterPanel 浮层 + `saveProcessedImage` 真写真册（`PhotoManager.editor.saveImage`），抽 `PhotoAlbumWriter` 抽象
+- **C 调色**：FilterCarousel 5 个滤镜（珊瑚/港风/日系/胶片/原图）+ 选中态
+- **D 美颜**：BeautySlider 三档滑杆（磨皮/美白/瘦脸）
+- **E 菜单**：AppMenuSheet BottomSheet（姿势库/设置/关于）—— 落地页待 P1
+- **F App内相册**：PhotoAlbumScreen 抽 `PhotoAlbumRepository` 抽象
+
+### 基础设施
+- 完整 token 体系：AppColors / AppSpacing / AppRadii / AppTypography
+- 中英 i18n：flutter gen-l10n，MaterialApp.router 接入
+- 测试覆盖：43 个测试（21 A + 22 B-F）全过
+- 8 个 flutter analyze issues（全部预存在的 withOpacity deprecation，无新增）
+
+### 下一步
+- P1：E 菜单 3 个入口的落地页（姿势库管理 / 设置 / 关于）
+- P1：用户自定义姿势导入
+- 修剩余 8 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
 
 ---
 
@@ -206,15 +234,16 @@ assets/poses/       # 远程下载的姿势
 
 ## 七、待办事项
 
-###7.1 P0 未完成项
+### 7.1 P0 未完成项
 
 - [ ] `resources/poses/` 下还需要 3 张内置姿势图（目前只有 1 张 `pose_outdoor_01.png`）
 - [ ] `poseRemoteBaseUrl` 目前是 `https://example.com/poses`，需替换为实际服务器地址
-- [ ] 滤镜保存到相册的完整流程（目前 filter_view_model 的 saveProcessedImage 未真正写入相册）
-- [ ] 双指缩放 `onScaleUpdate` 逻辑需要正确累计缩放值（当前实现有 bug，scale 是增量不是绝对值）
+- [x] 滤镜保存到相册的完整流程 ✅ `df74ceb` —— 抽 `PhotoAlbumWriter` 抽象 + `PhotoManager.editor.saveImage`
+- [ ] 双指缩放 `onScaleUpdate` 逻辑需要正确累计缩放值（当前实现有 bug，scale 是增量不是绝对值；代码 line 100 留有 TODO 注释）
 
 ### 7.2 P1/P2
 
+- [ ] E 菜单 3 个落地页：姿势库管理（`/pose-library`）/ 设置（`/settings`）/ 关于（`/about`）
 - [ ] 用户自定义姿势导入（相册选择图片）
 - [ ] 姿势分享/导入（需要服务器端 API）
 - [ ] 场景识别推荐（需要相机画面分析和 API）
@@ -236,3 +265,5 @@ assets/poses/       # 远程下载的姿势
 
 - 设计规格书：`docs/superpowers/specs/2026-06-04-easyBeautyCam-design.md`
 - 实现计划：`docs/superpowers/plans/2026-06-04-easyBeautyCam-plan.md`
+- A 任务设计稿：`docs/superpowers/specs/2026-06-17-camera-main-ui-redesign-design.md`
+- A 任务实现计划：`docs/superpowers/plans/2026-06-17-camera-main-ui-redesign.md`
