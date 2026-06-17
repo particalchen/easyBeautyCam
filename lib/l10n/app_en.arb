@@ -1,0 +1,26 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Easy Pose",
+
+  "actionCancel": "Cancel",
+  "actionEdit": "Edit",
+  "actionSave": "Save",
+  "actionBack": "Back",
+
+  "cameraAlbum": "Album",
+  "cameraMenu": "Menu",
+  "zoom1x": "1x",
+  "zoom2x": "2x",
+  "zoom3x": "3x",
+
+  "filterOriginal": "Original",
+  "filterCoral": "Coral",
+  "filterGangfeng": "HK Retro",
+  "filterRixi": "Soft",
+  "filterJiaopian": "Film",
+
+  "beautySmooth": "Smooth",
+  "beautyWhiten": "Whiten",
+  "beautySlim": "Slim"
+}

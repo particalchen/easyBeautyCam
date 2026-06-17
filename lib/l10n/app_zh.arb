@@ -1,0 +1,58 @@
+{
+  "@@locale": "zh",
+
+  "appTitle": "Easy Pose",
+  "@appTitle": {
+    "description": "应用顶部标题"
+  },
+
+  "actionCancel": "取消",
+  "@actionCancel": {
+    "description": "通用取消按钮"
+  },
+  "actionEdit": "编辑",
+  "@actionEdit": {
+    "description": "滤镜浮层标题"
+  },
+  "actionSave": "保存",
+  "@actionSave": {
+    "description": "保存按钮"
+  },
+  "actionBack": "返回",
+  "@actionBack": {
+    "description": "通用返回按钮"
+  },
+
+  "cameraAlbum": "相册",
+  "@cameraAlbum": {
+    "description": "相机页面相册入口"
+  },
+  "cameraMenu": "菜单",
+  "@cameraMenu": {
+    "description": "相机页面菜单按钮"
+  },
+  "zoom1x": "1x",
+  "@zoom1x": { "description": "1 倍镜头" },
+  "zoom2x": "2x",
+  "@zoom2x": { "description": "2 倍镜头" },
+  "zoom3x": "3x",
+  "@zoom3x": { "description": "3 倍镜头" },
+
+  "filterOriginal": "原图",
+  "@filterOriginal": { "description": "无滤镜" },
+  "filterCoral": "珊瑚",
+  "@filterCoral": { "description": "珊瑚色调" },
+  "filterGangfeng": "港风",
+  "@filterGangfeng": { "description": "港风色调" },
+  "filterRixi": "日系",
+  "@filterRixi": { "description": "日系色调" },
+  "filterJiaopian": "胶片",
+  "@filterJiaopian": { "description": "胶片色调" },
+
+  "beautySmooth": "磨皮",
+  "@beautySmooth": { "description": "磨皮滑杆标签" },
+  "beautyWhiten": "美白",
+  "@beautyWhiten": { "description": "美白滑杆标签" },
+  "beautySlim": "瘦脸",
+  "@beautySlim": { "description": "瘦脸滑杆标签" }
+}

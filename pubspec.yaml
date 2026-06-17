@@ -8,6 +8,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^2.4.9
   camera: ^0.10.5+9
   image: ^4.1.3
@@ -17,6 +19,8 @@ dependencies:
   http: ^1.2.0
   go_router: ^13.2.0
   photo_manager: ^3.0.0
+  flutter_svg: ^2.0.10
+  intl: any
 
 dev_dependencies:
   flutter_test:
@@ -25,6 +29,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - resources/poses/
     - assets/poses/
+    - assets/icons/
