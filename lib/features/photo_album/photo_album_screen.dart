@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 class PhotoAlbumScreen extends StatefulWidget {
   const PhotoAlbumScreen({super.key});
@@ -39,10 +42,11 @@ class _PhotoAlbumScreenState extends State<PhotoAlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('相册'),
+        title: Text(l10n.cameraAlbum),
         backgroundColor: AppColors.background,
         elevation: 0,
       ),
