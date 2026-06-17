@@ -13,6 +13,7 @@ import 'capture_button.dart';
 /// 2. 控制栏（占位 | 快门 | 相机切换）
 class CameraControls extends StatelessWidget {
   final int cameraIndex;
+  final double currentZoom;
   final ValueChanged<int> onCameraSwitch;
   final ValueChanged<double> onZoomSelect;
   final VoidCallback onCapture;
@@ -20,6 +21,7 @@ class CameraControls extends StatelessWidget {
   const CameraControls({
     super.key,
     required this.cameraIndex,
+    required this.currentZoom,
     required this.onCameraSwitch,
     required this.onZoomSelect,
     required this.onCapture,
@@ -56,7 +58,7 @@ class CameraControls extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (int i = 0; i < zooms.length; i++) ...[
-                _buildZoomPill(zooms[i]),
+                _buildZoomPill(zooms[i], zooms[i] == currentZoom),
                 if (i < zooms.length - 1) const SizedBox(width: AppSpacing.sm),
               ],
             ],
@@ -79,7 +81,7 @@ class CameraControls extends StatelessWidget {
     );
   }
 
-  Widget _buildZoomPill(double zoom) {
+  Widget _buildZoomPill(double zoom, bool isSelected) {
     return GestureDetector(
       onTap: () => onZoomSelect(zoom),
       child: AnimatedContainer(
@@ -89,14 +91,16 @@ class CameraControls extends StatelessWidget {
           vertical: 6,
         ),
         decoration: BoxDecoration(
-          color: AppColors.inverseSurface.withOpacity(0.4),
+          color: isSelected
+              ? AppColors.primary
+              : AppColors.inverseSurface.withOpacity(0.4),
           borderRadius: BorderRadius.circular(AppRadii.full),
         ),
         child: Text(
           _zoomLabel(zoom),
           style: AppTypography.numericLabel.copyWith(
             color: Colors.white,
-            fontWeight: FontWeight.w500,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
       ),

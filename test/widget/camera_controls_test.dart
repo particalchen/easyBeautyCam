@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:easy_beauty_cam/core/theme/app_colors.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
 import 'package:easy_beauty_cam/features/camera/widgets/camera_controls.dart';
 
@@ -18,6 +19,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 0,
+          currentZoom: 1.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -37,6 +39,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 0,
+          currentZoom: 1.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
@@ -53,6 +56,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 0,
+          currentZoom: 1.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
@@ -68,6 +72,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 0,
+          currentZoom: 1.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -77,6 +82,28 @@ void main() {
       await tester.tap(find.byIcon(Icons.cameraswitch));
       expect(switchedTo, 1);
     });
+
+    testWidgets('currentZoom=2.0 时，2x pill 渲染为 AppColors.primary（选中态）', (tester) async {
+      await tester.pumpWidget(_wrap(
+        CameraControls(
+          cameraIndex: 0,
+          currentZoom: 2.0,
+          onCameraSwitch: (_) {},
+          onZoomSelect: (_) {},
+          onCapture: () {},
+        ),
+      ));
+
+      // 找到文字 "2" 对应的 AnimatedContainer，验证它的 decoration.color == AppColors.primary
+      final containerFinder = find.ancestor(
+        of: find.text('2'),
+        matching: find.byType(AnimatedContainer),
+      );
+      expect(containerFinder, findsOneWidget);
+      final container = tester.widget<AnimatedContainer>(containerFinder);
+      final decoration = container.decoration as BoxDecoration;
+      expect(decoration.color, AppColors.primary);
+    });
   });
 
   group('CameraControls - 前置相机', () {
@@ -84,6 +111,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 1,
+          currentZoom: 1.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -101,6 +129,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 1,
+          currentZoom: 1.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
@@ -116,6 +145,7 @@ void main() {
       await tester.pumpWidget(_wrap(
         CameraControls(
           cameraIndex: 1,
+          currentZoom: 1.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -124,6 +154,27 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.cameraswitch));
       expect(switchedTo, 0);
+    });
+
+    testWidgets('前置相机 1x pill 始终选中（只有 1 颗）', (tester) async {
+      await tester.pumpWidget(_wrap(
+        CameraControls(
+          cameraIndex: 1,
+          currentZoom: 1.0,
+          onCameraSwitch: (_) {},
+          onZoomSelect: (_) {},
+          onCapture: () {},
+        ),
+      ));
+
+      final containerFinder = find.ancestor(
+        of: find.text('1x'),
+        matching: find.byType(AnimatedContainer),
+      );
+      expect(containerFinder, findsOneWidget);
+      final container = tester.widget<AnimatedContainer>(containerFinder);
+      final decoration = container.decoration as BoxDecoration;
+      expect(decoration.color, AppColors.primary);
     });
   });
 }
