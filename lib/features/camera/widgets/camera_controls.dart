@@ -93,7 +93,7 @@ class CameraControls extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primary
-              : AppColors.inverseSurface.withOpacity(0.4),
+              : AppColors.inverseSurface.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(AppRadii.full),
         ),
         child: Text(

@@ -5,7 +5,7 @@ import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
 import 'package:easy_beauty_cam/features/camera/widgets/camera_controls.dart';
 
 void main() {
-  Widget _wrap(Widget child) {
+  Widget wrap(Widget child) {
     return MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -16,7 +16,7 @@ void main() {
 
   group('CameraControls - 后置相机', () {
     testWidgets('渲染 4 颗焦段 pill: .5 / 1x / 2 / 3', (tester) async {
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
@@ -36,7 +36,7 @@ void main() {
       double? zoomedTo;
       int? switchedTo;
 
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
@@ -53,7 +53,7 @@ void main() {
 
     testWidgets('点击 .5 触发 onZoomSelect(0.5)', (tester) async {
       double? zoomedTo;
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
@@ -69,7 +69,7 @@ void main() {
 
     testWidgets('渲染相机切换按钮，点击触发 onCameraSwitch(1)', (tester) async {
       int? switchedTo;
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
@@ -84,7 +84,7 @@ void main() {
     });
 
     testWidgets('currentZoom=2.0 时，2x pill 渲染为 AppColors.primary（选中态）', (tester) async {
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 2.0,
@@ -108,7 +108,7 @@ void main() {
 
   group('CameraControls - 前置相机', () {
     testWidgets('焦段行只剩 1 颗 1x pill', (tester) async {
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
@@ -126,7 +126,7 @@ void main() {
 
     testWidgets('点击 1x 触发 onZoomSelect(1.0)', (tester) async {
       double? zoomedTo;
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
@@ -142,7 +142,7 @@ void main() {
 
     testWidgets('点击相机切换按钮触发 onCameraSwitch(0)', (tester) async {
       int? switchedTo;
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
@@ -157,7 +157,7 @@ void main() {
     });
 
     testWidgets('前置相机 1x pill 始终选中（只有 1 颗）', (tester) async {
-      await tester.pumpWidget(_wrap(
+      await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
