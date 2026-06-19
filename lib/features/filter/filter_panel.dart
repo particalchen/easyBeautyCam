@@ -1,26 +1,52 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radii.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'filter_view_model.dart';
-import 'widgets/filter_carousel.dart';
 import 'widgets/beauty_slider.dart';
+import 'widgets/filter_carousel.dart';
 
-/// 滤镜 + 美颜 浮层
+/// 拍后编辑页：图片预览 + 滤镜/美颜 tab
 ///
-/// 触发时机：拍完照后从 camera_screen 弹出（showModalBottomSheet）
+/// 触发：拍完照后从 camera_screen showModalBottomSheet 弹出
 /// 设计：DESIGN.md Elevation & Depth › Floating Panels
-/// - 半透明暖白底（overlay-bg） + 高斯模糊（在调用方外面包一层 BackdropFilter 可选）
-/// - 顶部 24px 圆角
-class FilterPanel extends ConsumerWidget {
+/// 布局（自上而下）：
+/// 1. 拖动条
+/// 2. 顶部栏（取消 / 编辑 / 保存）
+/// 3. 图片预览（全宽，按比例 contain 不裁切）
+/// 4. TabBar（滤镜 / 美颜）
+/// 5. TabBarView（FilterCarousel / BeautySlider）
+class FilterPanel extends ConsumerStatefulWidget {
   const FilterPanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FilterPanel> createState() => _FilterPanelState();
+}
+
+class _FilterPanelState extends ConsumerState<FilterPanel>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(filterViewModelProvider);
 
@@ -34,7 +60,7 @@ class FilterPanel extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── 顶部把手 ──
+            // ── 拖动条 ──
             const SizedBox(height: AppSpacing.sm),
             Container(
               width: 36,
@@ -44,7 +70,7 @@ class FilterPanel extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(AppRadii.full),
               ),
             ),
-            // ── 顶部栏：取消 / 编辑 / 保存 ──
+            // ── 顶部栏 ──
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.marginMain,
@@ -62,45 +88,58 @@ class FilterPanel extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  Text(
-                    l10n.actionEdit,
-                    style: AppTypography.headlineMd,
-                  ),
+                  Text(l10n.actionEdit, style: AppTypography.headlineMd),
                   TextButton(
-                    onPressed: () => _save(context, ref),
-                    child: Text(
-                      l10n.actionSave,
-                      style: AppTypography.buttonText.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    onPressed: state.isProcessing
+                        ? null
+                        : () => _save(context, ref),
+                    child: state.isProcessing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            l10n.actionSave,
+                            style: AppTypography.buttonText.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ],
               ),
             ),
             // ── 图片预览 ──
-            if (state.imagePath != null)
-              Container(
-                height: 300,
-                margin: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.marginMain,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: AppRadii.xlAll,
-                  image: DecorationImage(
-                    image: FileImage(File(state.imagePath!)),
-                    fit: BoxFit.cover,
+            if (state.imagePath != null) _PhotoPreview(state: state),
+            // ── TabBar ──
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.onSurfaceVariant,
+              indicatorColor: AppColors.primary,
+              tabs: const [
+                Tab(text: '滤镜'),
+                Tab(text: '美颜'),
+              ],
+            ),
+            // ── TabView ──
+            SizedBox(
+              height: 200,
+              child: TabBarView(
+                controller: _tabController,
+                children: const [
+                  FilterCarousel(),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: AppSpacing.gutterGrid,
+                    ),
+                    child: BeautySlider(),
                   ),
-                ),
+                ],
               ),
-            const SizedBox(height: AppSpacing.gutterGrid),
-            // ── 滤镜选择 ──
-            const FilterCarousel(),
-            const SizedBox(height: AppSpacing.gutterGrid),
-            // ── 美颜滑杆 ──
-            const BeautySlider(),
-            const SizedBox(height: AppSpacing.gutterGrid),
+            ),
+            const SizedBox(height: AppSpacing.sm),
           ],
         ),
       ),
@@ -109,7 +148,59 @@ class FilterPanel extends ConsumerWidget {
 
   Future<void> _save(BuildContext context, WidgetRef ref) async {
     final notifier = ref.read(filterViewModelProvider.notifier);
-    await notifier.saveProcessedImage();
-    if (context.mounted) Navigator.pop(context, true);
+    final path = await notifier.saveProcessedImage();
+    if (context.mounted) Navigator.pop(context, path);
+  }
+}
+
+/// 图片预览：全宽 + contain 不裁切 + 处理后实时反映
+class _PhotoPreview extends StatelessWidget {
+  final FilterViewModelState state;
+  const _PhotoPreview({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
+      child: ClipRRect(
+        borderRadius: AppRadii.xlAll,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // 主预览图：优先 processed，没有则原图
+              if (state.previewBytes != null)
+                Image.memory(
+                  state.previewBytes!,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  gaplessPlayback: true,
+                )
+              else if (state.imagePath != null)
+                Image.file(
+                  File(state.imagePath!),
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                ),
+              // 处理中弱指示器（不遮挡图）
+              if (state.isPreviewProcessing)
+                const Positioned(
+                  top: 8,
+                  right: 8,
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

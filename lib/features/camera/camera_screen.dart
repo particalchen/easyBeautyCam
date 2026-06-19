@@ -1,7 +1,10 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'dart:async';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -33,14 +36,45 @@ class CameraScreen extends ConsumerStatefulWidget {
   ConsumerState<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends ConsumerState<CameraScreen> {
+class _CameraScreenState extends ConsumerState<CameraScreen>
+    with SingleTickerProviderStateMixin {
   /// 姿势缩略图条距底部控制栏的垂直间距
   static const double _kPoseStripGap = 32;
+
+  /// 手势缩放基线（onScaleStart 时锁定，避免累计漂移）
+  double _gestureBaseZoom = 1.0;
+
+  /// 拍照闪白动画控制器
+  late final AnimationController _flashController;
+  late final Animation<double> _flashAnimation;
 
   @override
   void initState() {
     super.initState();
+    // 闪白动画：opacity 0→1→0，~150ms 出 + 200ms 收
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _flashAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 150,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 200,
+      ),
+    ]).animate(_flashController);
     Future.microtask(() => ref.read(cameraViewModelProvider.notifier).initialize());
+  }
+
+  @override
+  void dispose() {
+    _flashController.dispose();
+    super.dispose();
   }
 
   /// 弹出菜单 BottomSheet —— 姿势库 / 设置 / 关于
@@ -121,9 +155,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       children: [
         // 1) 双指缩放手势层（姿势轮廓不跟随缩放）
         GestureDetector(
+          onScaleStart: (details) {
+            // 记录缩放起始基线，避免连续 pinch 累计漂移
+            _gestureBaseZoom = state.currentZoom;
+          },
           onScaleUpdate: (details) {
-            // TODO: 修复累计缩放 bug —— 当前是增量乘 base，应记录 baseZoom
-            final zoom = (state.currentZoom * details.scale).clamp(1.0, 5.0);
+            final zoom = (_gestureBaseZoom * details.scale).clamp(0.5, 5.0);
             notifier.setZoom(zoom);
           },
           child: Center(child: CameraPreview(controller)),
@@ -157,23 +194,41 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 currentZoom: state.currentZoom,
                 onCameraSwitch: (index) => notifier.switchCamera(index),
                 onZoomSelect: (zoom) => notifier.setZoom(zoom),
-                onCapture: () async {
-                  final path = await notifier.takePicture();
-                  if (path != null && context.mounted) {
-                    ref.read(filterViewModelProvider.notifier).setImage(path);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => const FilterPanel(),
-                    );
-                  }
-                },
+                onCapture: () => _capture(notifier),
               ),
             ),
           ),
         ),
+        // 5) 拍照闪白层（盖在最上）
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _flashAnimation,
+            builder: (context, _) {
+              final opacity = _flashAnimation.value;
+              if (opacity <= 0) return const SizedBox.shrink();
+              return Container(color: Colors.white.withValues(alpha: opacity));
+            },
+          ),
+        ),
       ],
     );
+  }
+
+  /// 拍照动作：闪白 + 声效 + 跳编辑面板
+  Future<void> _capture(CameraViewModel notifier) async {
+    // 先开闪白 + 声效，给用户即时反馈
+    _flashController.forward(from: 0);
+    unawaited(SystemSound.play(SystemSoundType.click));
+
+    final path = await notifier.takePicture();
+    if (path != null && mounted) {
+      ref.read(filterViewModelProvider.notifier).setImage(path);
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => const FilterPanel(),
+      );
+    }
   }
 }

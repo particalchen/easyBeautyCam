@@ -5,31 +5,36 @@
 
 ---
 
-## 〇、最新进度（2026-06-17）
+## 〇、最新进度（2026-06-19）
 
-### A 相机主屏 UI 重构 ✅ 完成（9 commits, f1aca83..b4a8d9c）
-- iOS 风格布局：焦段行 / 拍照按钮 / 相机切换按钮 / AppBar
-- 相机切换按钮与相册按钮视觉统一（AppCircleIconButton）
-- 前置相机自动隐藏姿势缩略图条 + 焦段行只显示 1x
-- 21 个 widget test 全过
+### 真机回归 bug 修复 ✅ 完成（5/5）
+1. **0.5x 焦段无反应**：pinch 手势 `clamp(1.0, 5.0)` 下限错误 → 改为 `clamp(0.5, 5.0)` + 记录 baseZoom 避免累计漂移
+2. **拍照无反馈**：加 350ms 全屏闪白动画（`AnimationController`）+ `SystemSound.play(SystemSoundType.click)` 声效
+3. **相册不是 app 内 grid**：新增 `AppPhotoRepository`（本地文件 + JSON manifest），与 `PhotoAlbumRepository`（photo_manager 读本机相册）解耦；PhotoAlbumScreen 改读 AppPhotoRepository
+4. **照片处理 UX 缺陷**：
+   - 照片预览改 `BoxFit.contain` + 黑色底，不裁切竖向照片
+   - FilterPanel 加 TabBar（滤镜 / 美颜），替代原来垂直堆叠
+   - FilterViewModel 加 `previewBytes` 实时反映：selectFilter / setSmooth / setWhiten / setSlim 触发 200ms debounce 异步重处理 + `Image.memory` 显示
+5. **保存照片被模糊**：`applyBeauty` 磨皮参数调小 —— radius `smooth/30`（30→1）、blendFactor `smooth/500`（30→0.06），不再糊脸
 
 ### B-F 子项目 ✅ 全部完成（7 commits, f42e33e..7deb6b2）
 - **B 拍后编辑页**：FilterPanel 浮层 + `saveProcessedImage` 真写真册（`PhotoManager.editor.saveImage`），抽 `PhotoAlbumWriter` 抽象
 - **C 调色**：FilterCarousel 5 个滤镜（珊瑚/港风/日系/胶片/原图）+ 选中态
 - **D 美颜**：BeautySlider 三档滑杆（磨皮/美白/瘦脸）
 - **E 菜单**：AppMenuSheet BottomSheet（姿势库/设置/关于）—— 落地页待 P1
-- **F App内相册**：PhotoAlbumScreen 抽 `PhotoAlbumRepository` 抽象
+- **F App内相册**：PhotoAlbumScreen 抽 `AppPhotoRepository` 抽象（取代 photo_manager）+ 长按多选删除
 
 ### 基础设施
 - 完整 token 体系：AppColors / AppSpacing / AppRadii / AppTypography
 - 中英 i18n：flutter gen-l10n，MaterialApp.router 接入
-- 测试覆盖：43 个测试（21 A + 22 B-F）全过
-- 8 个 flutter analyze issues（全部预存在的 withOpacity deprecation，无新增）
+- 测试覆盖：51 个测试（21 A + 22 B-F + 8 真机回归）全过
+- 7 个 flutter analyze issues（全部预存在的 withOpacity deprecation，无新增）
 
 ### 下一步
 - P1：E 菜单 3 个入口的落地页（姿势库管理 / 设置 / 关于）
 - P1：用户自定义姿势导入
-- 修剩余 8 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
+- 修剩余 7 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
+- AppPhotoRepository 持久化层可改用 hive（当前 JSON 够轻量）
 
 ---
 

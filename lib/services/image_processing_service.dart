@@ -74,9 +74,11 @@ class ImageProcessingService {
     var result = image;
 
     // Smooth (Gaussian blur + blend)
+    // radius 保持极小（≤2），blendFactor 也很低（≤0.20），避免"模糊糊脸"感
     if (smooth > 0) {
-      final blurred = img.gaussianBlur(result, radius: (smooth / 10).round());
-      final blendFactor = smooth / 100;
+      final radius = (smooth / 30).round().clamp(1, 2);
+      final blurred = img.gaussianBlur(result, radius: radius);
+      final blendFactor = smooth / 500; // 30 → 0.06, 100 → 0.20
       result = img.Image(width: result.width, height: result.height);
       for (int y = 0; y < result.height; y++) {
         for (int x = 0; x < result.width; x++) {

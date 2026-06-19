@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/filter_carousel.dart';
+import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
@@ -52,7 +53,7 @@ class _TestFilterViewModel extends FilterViewModel {
   final FilterType selected;
   final void Function(FilterType)? onSelect;
   _TestFilterViewModel({required this.selected, this.onSelect})
-      : super(_NoopService(), _NoopWriter());
+      : super(_NoopService(), _NoopWriter(), _NoopRepo());
 
   @override
   FilterViewModelState get state =>
@@ -80,6 +81,16 @@ class _NoopService extends ImageProcessingService {
 class _NoopWriter implements PhotoAlbumWriter {
   @override
   Future<void> saveImage(Uint8List bytes, {required String filename}) async {}
+}
+
+class _NoopRepo implements AppPhotoRepository {
+  @override
+  Future<List<String>> listAll() async => const [];
+  @override
+  Future<String> add(Uint8List bytes) async =>
+      '/noop/${DateTime.now().microsecondsSinceEpoch}.jpg';
+  @override
+  Future<void> delete(List<String> paths) async {}
 }
 
 void main() {

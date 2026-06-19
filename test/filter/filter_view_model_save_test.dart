@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
+import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
@@ -35,6 +36,25 @@ class _FakePhotoAlbumWriter implements PhotoAlbumWriter {
   int get callCount => _calls.length;
 }
 
+class _FakeAppPhotoRepo implements AppPhotoRepository {
+  final List<String> _paths = [];
+
+  @override
+  Future<List<String>> listAll() async => List.unmodifiable(_paths);
+
+  @override
+  Future<String> add(Uint8List bytes) async {
+    final p = '/fake/${DateTime.now().microsecondsSinceEpoch}.jpg';
+    _paths.add(p);
+    return p;
+  }
+
+  @override
+  Future<void> delete(List<String> paths) async {
+    _paths.removeWhere(paths.contains);
+  }
+}
+
 void main() {
   group('FilterViewModel.saveProcessedImage', () {
     late Uint8List fakeBytes;
@@ -57,6 +77,7 @@ void main() {
             _FakeProcessingService(fakeBytes),
           ),
           photoAlbumWriterProvider.overrideWithValue(writer),
+          appPhotoRepositoryProvider.overrideWithValue(_FakeAppPhotoRepo()),
         ],
       );
     });

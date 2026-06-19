@@ -1,31 +1,37 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:easy_beauty_cam/features/photo_album/photo_album_repository.dart';
+import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/features/photo_album/photo_album_screen.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
 
-/// mock 仓库
-class _StubRepo implements PhotoAlbumRepository {
-  final bool grantPermission;
+/// 内存 mock：纯 list，不走 path_provider
+class _StubAppRepo implements AppPhotoRepository {
   final List<String> paths;
-
-  _StubRepo({this.grantPermission = true, this.paths = const []});
-
-  @override
-  Future<bool> requestPermission() async => grantPermission;
+  _StubAppRepo({this.paths = const []});
 
   @override
-  Future<List<String>> loadRecentPhotoPaths({int limit = 100}) async => paths;
+  Future<List<String>> listAll() async => paths;
+
+  @override
+  Future<String> add(Uint8List bytes) async {
+    final p = '/mem/${DateTime.now().microsecondsSinceEpoch}.jpg';
+    return p;
+  }
+
+  @override
+  Future<void> delete(List<String> paths) async {}
 }
 
-Future<void> pumpScreen(WidgetTester tester, PhotoAlbumRepository repo) async {
+Future<void> pumpScreen(WidgetTester tester, AppPhotoRepository repo) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        photoAlbumRepositoryProvider.overrideWithValue(repo),
+        appPhotoRepositoryProvider.overrideWithValue(repo),
       ],
       child: const MaterialApp(
         localizationsDelegates: [
@@ -40,29 +46,26 @@ Future<void> pumpScreen(WidgetTester tester, PhotoAlbumRepository repo) async {
       ),
     ),
   );
-  // initState 异步 load 完成后 pumpAndSettle
   await tester.pumpAndSettle();
 }
 
 void main() {
   group('PhotoAlbumScreen', () {
     testWidgets('AppBar 显示「相册」标题', (tester) async {
-      await pumpScreen(tester, _StubRepo(paths: []));
+      await pumpScreen(tester, _StubAppRepo(paths: []));
 
       expect(find.text('相册'), findsOneWidget);
     });
 
-    testWidgets('无照片时 grid 为空（itemCount 0）', (tester) async {
-      await pumpScreen(tester, _StubRepo(paths: []));
+    testWidgets('空目录显示空态文案，无 grid', (tester) async {
+      await pumpScreen(tester, _StubAppRepo(paths: []));
 
-      final grid = tester.widget<GridView>(find.byType(GridView));
-      // 空 grid 不渲染 Image.file
-      expect(find.byType(Image), findsNothing);
-      expect(grid, isNotNull);
+      expect(find.text('还没有拍过照片'), findsOneWidget);
+      expect(find.byType(GridView), findsNothing);
     });
 
-    testWidgets('3 张照片时 grid 渲染 3 个 Image', (tester) async {
-      await pumpScreen(tester, _StubRepo(
+    testWidgets('3 张照片时渲染 3 个 Image.file tile', (tester) async {
+      await pumpScreen(tester, _StubAppRepo(
         paths: const [
           '/tmp/p1.jpg',
           '/tmp/p2.jpg',
@@ -70,18 +73,23 @@ void main() {
         ],
       ));
 
-      // GridView.builder 是 lazy 的，viewport 默认 600pt × 800pt，
-      // 3 列 + padding 4 → 每张约 (600-16)/3 = 194pt 都能装下
-      // 但 Lazy rendering：找 first Image 即可
+      // GridView.builder 是 lazy 的，找至少一个 Image 即可
+      expect(find.byType(GridView), findsOneWidget);
       expect(find.byType(Image), findsAtLeast(1));
     });
 
-    testWidgets('权限被拒时 grid 存在但无 Image', (tester) async {
-      await pumpScreen(tester, _StubRepo(grantPermission: false));
+    testWidgets('长按进入多选模式（AppBar 显示已选数）', (tester) async {
+      await pumpScreen(tester, _StubAppRepo(
+        paths: const ['/tmp/p1.jpg', '/tmp/p2.jpg'],
+      ));
 
-      // 权限被拒时仍渲染 grid（itemCount 0），不渲染任何图片
-      expect(find.byType(GridView), findsOneWidget);
-      expect(find.byType(Image), findsNothing);
+      // 找到第一个 tile（GestureDetector 包裹 Image）
+      await tester.longPress(find.byType(GestureDetector).first);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('已选'), findsOneWidget);
+      // AppBar 应有删除按钮
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
   });
 }

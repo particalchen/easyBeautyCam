@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/beauty_slider.dart';
+import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
@@ -23,7 +24,7 @@ class _StubViewModel extends FilterViewModel {
     this.onWhiten,
     this.onSlim,
   })  : _state = state,
-        super(_NoopService(), _NoopWriter());
+        super(_NoopService(), _NoopWriter(), _NoopRepo());
 
   @override
   FilterViewModelState get state => _state;
@@ -54,6 +55,15 @@ class _NoopService extends ImageProcessingService {
 class _NoopWriter implements PhotoAlbumWriter {
   @override
   Future<void> saveImage(Uint8List bytes, {required String filename}) async {}
+}
+
+class _NoopRepo implements AppPhotoRepository {
+  @override
+  Future<List<String>> listAll() async => const [];
+  @override
+  Future<String> add(Uint8List bytes) async => '/noop/${DateTime.now().microsecondsSinceEpoch}.jpg';
+  @override
+  Future<void> delete(List<String> paths) async {}
 }
 
 ProviderScope buildScope({
