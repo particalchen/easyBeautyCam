@@ -13,13 +13,38 @@ import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
 class _StubRepo extends FilterViewModel {
-  _StubRepo({String? imagePath})
+  _StubRepo({String? imagePath, Uint8List? previewBytes})
       : super(_NoopService(), _NoopWriter(), _NoopRepo()) {
     if (imagePath != null) {
-      state = state.copyWith(imagePath: imagePath);
+      state = state.copyWith(imagePath: imagePath, previewBytes: previewBytes);
     }
   }
+
+  /// 测试用：绕过 debounce 立即设置 previewBytes
+  void debugSetPreview(String path, Uint8List bytes) {
+    state = state.copyWith(imagePath: path, previewBytes: bytes);
+  }
 }
+
+/// 1x1 透明 PNG（最小可解码图片，避免 widget test 找不到 asset）
+final _kTinyPng = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+  0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xC0,
+  0xC0, 0x00, 0x00, 0x00, 0x05, 0x00, 0x01, 0x9D, 0xA1, 0x88, 0x84, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+]);
+
+/// 9x16 透明 PNG（竖向，模拟真机 portrait 照片的极端长宽比）
+final _kTallPng = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x10,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0xC4, 0x48, 0x55, 0x43, 0x00, 0x00, 0x00,
+  0x0F, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x60, 0x18, 0x05, 0xA3,
+  0x80, 0x7A, 0x00, 0x00, 0x02, 0x50, 0x00, 0x01, 0x26, 0xC0, 0x37, 0x49,
+  0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+]);
 
 class _NoopService extends ImageProcessingService {
   @override
@@ -168,6 +193,47 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(popped, isTrue);
+    });
+
+    // 回归：2026-06-19 真机报 RenderFlex overflowed by 144 pixels
+    // 原因：_PhotoPreview 在 Image.memory 之前没限高度，竖向照片按
+    // intrinsic aspect 把 bottomSheet 撑爆。修法：maxHeight = 屏幕高 45%。
+    testWidgets('9:16 竖向 previewBytes 不溢出（800 屏幕 + tall png）', (tester) async {
+      // 设置大屏幕，模拟竖向长图容易触发的场景
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      // 9:16 竖向 PNG，模拟真机 portrait 照片
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            filterViewModelProvider.overrideWith((ref) {
+              final vm = _StubRepo();
+              vm.debugSetPreview('/tmp/test.jpg', _kTallPng);
+              return vm;
+            }),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: Locale('zh'),
+            home: Scaffold(body: Material(child: FilterPanel())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 关键断言：没有 RenderFlex overflow 异常被框架吞掉
+      expect(tester.takeException(), isNull);
+      // 预览图渲染成功
+      expect(find.byType(Image), findsWidgets);
     });
   });
 }

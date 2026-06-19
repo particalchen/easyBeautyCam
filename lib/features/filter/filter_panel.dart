@@ -154,50 +154,59 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
 }
 
 /// 图片预览：全宽 + contain 不裁切 + 处理后实时反映
+///
+/// 高度限制：max 屏幕高 45%，避免竖向照片撑爆 bottomSheet
 class _PhotoPreview extends StatelessWidget {
   final FilterViewModelState state;
   const _PhotoPreview({required this.state});
 
   @override
   Widget build(BuildContext context) {
+    // 屏幕高 - 顶部栏 ~50 - TabBar 38 - TabView 200 - bottom padding 16
+    // ≈ 屏幕高 45%，给竖向照片留出 contain 缩放空间
+    final maxPreviewHeight = MediaQuery.of(context).size.height * 0.45;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
-      child: ClipRRect(
-        borderRadius: AppRadii.xlAll,
-        child: ColoredBox(
-          color: Colors.black,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // 主预览图：优先 processed，没有则原图
-              if (state.previewBytes != null)
-                Image.memory(
-                  state.previewBytes!,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  gaplessPlayback: true,
-                )
-              else if (state.imagePath != null)
-                Image.file(
-                  File(state.imagePath!),
-                  fit: BoxFit.contain,
-                  width: double.infinity,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxPreviewHeight),
+        child: ClipRRect(
+          borderRadius: AppRadii.xlAll,
+          child: ColoredBox(
+            color: Colors.black,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 主预览图：按 available 尺寸 contain，竖向照片按比例缩小到 maxHeight
+                SizedBox.expand(
+                  child: state.previewBytes != null
+                      ? Image.memory(
+                          state.previewBytes!,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        )
+                      : (state.imagePath != null
+                          ? Image.file(
+                              File(state.imagePath!),
+                              fit: BoxFit.contain,
+                            )
+                          : const SizedBox.shrink()),
                 ),
-              // 处理中弱指示器（不遮挡图）
-              if (state.isPreviewProcessing)
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+                // 处理中弱指示器（不遮挡图）
+                if (state.isPreviewProcessing)
+                  const Positioned(
+                    top: 8,
+                    right: 8,
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

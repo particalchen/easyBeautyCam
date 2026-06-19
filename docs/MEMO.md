@@ -163,6 +163,55 @@
 
 ---
 
+## 〇二、FilterPanel 图片预览溢出（2026-06-20）
+
+### 现象
+- 真机拍完照进入编辑页时，flutter framework 报：`A RenderFlex overflowed by 144 pixels on the bottom.`
+- 视觉表现：底部 144pt 内容（TabBar + TabBarView）被截掉，看不到 Tab 切换按钮
+
+### 根因
+- `FilterPanel._PhotoPreview` 用 `Image.memory(bytes, fit: BoxFit.contain, width: double.infinity)`
+- Image 在 `width=double.infinity` 但无高度约束时，按图片**原始 aspect ratio** 决定高度
+- 竖向 portrait 照片（9:16、3:4）原始 height 很大（3000~4000px），等比缩放到屏幕宽后仍很高
+- bottomSheet 默认高度 ≈ 屏幕 9/16 ≈ 405pt；图片预览区按 aspect 算出来的高度 > 405pt → Column mainAxisSize.min 撑爆
+
+### 修法
+- 在 `_PhotoPreview` 外层包 `ConstrainedBox(maxHeight: 屏幕高 × 0.45)`
+- 给最大高度 ≈ 360pt（800pt 屏幕），确保留出空间给顶部栏 + TabBar + TabBarView（~250pt）
+- `BoxFit.contain` + 黑底 + `SizedBox.expand` 居中 → 竖向照片按比例缩到 maxHeight 内完整显示
+
+```dart
+final maxPreviewHeight = MediaQuery.of(context).size.height * 0.45;
+return Padding(
+  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
+  child: ConstrainedBox(
+    constraints: BoxConstraints(maxHeight: maxPreviewHeight),
+    child: ClipRRect(
+      borderRadius: AppRadii.xlAll,
+      child: ColoredBox(
+        color: Colors.black,
+        child: SizedBox.expand(
+          child: Image.memory(bytes, fit: BoxFit.contain, ...),
+        ),
+      ),
+    ),
+  ),
+);
+```
+
+### Regression 测试
+- `test/widget/filter_panel_test.dart › 9:16 竖向 previewBytes 不溢出（800 屏幕 + tall png）`
+- 模拟 360×800 屏幕（典型小屏手机） + 9:16 PNG bytes（用 Python 拼的最小透明 PNG）
+- 断言：`tester.takeException()` 返回 null（没有 RenderFlex overflow 被吞）
+- 验证过：临时把 `ConstrainedBox` 移除后这个测试**会失败**，确认能 catch bug
+
+### 验证
+- 52/52 测试通过
+- `flutter analyze` 无新增 issue
+- 仍然全 7 个 pre-existing info-level withOpacity lint
+
+---
+
 ## 一、项目概述
 
 **项目名称**：EasyBeautyCam

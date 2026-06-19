@@ -5,6 +5,11 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 本项目遵守 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] — 2026-06-20
+
+### Fixed
+- **拍后编辑**：图片预览区加 `ConstrainedBox(maxHeight: 屏幕高 × 0.45)` 限高，竖向 portrait 照片不再把 BottomSheet 撑爆（之前会 `RenderFlex overflowed by 144 pixels`）
+
 ## [Unreleased] — 2026-06-19
 
 ### Fixed
