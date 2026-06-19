@@ -1,7 +1,7 @@
 # EasyBeautyCam 项目备忘
 
 > 创建时间：2026-06-05
-> 最后更新：2026-06-17
+> 最后更新：2026-06-19
 
 ---
 
@@ -35,6 +35,131 @@
 - P1：用户自定义姿势导入
 - 修剩余 7 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
 - AppPhotoRepository 持久化层可改用 hive（当前 JSON 够轻量）
+
+---
+
+## 〇一、真机回归 bug 详细记录（2026-06-19）
+
+> 概述：2026-06-18 第一次在真机跑通 P0 + B-F 全套流程，发现 5 个明显 UX/功能 bug。一并修复于 commit `3a1a4ad`，51/51 测试通过。
+
+### Bug #1：0.5x 焦段无反应
+- **现象**：后置相机点击 `.5` pill 偶尔无反应；双指 pinch 缩到最小时停在 1x
+- **根因**：`lib/features/camera/camera_screen.dart` 的 pinch 手势把缩放下限 clamp 到了 1.0：
+  ```dart
+  final zoom = (state.currentZoom * details.scale).clamp(1.0, 5.0);
+  ```
+  用户从 1x 开始双指缩小时（`details.scale < 1.0`），计算结果 < 1.0，但被强行拉回 1.0。pill 路径走的是 `onZoomSelect(0.5)`，能传 0.5 进去但 pinch 路径到不了
+- **修法**：
+  - clamp 下限 1.0 → **0.5**（与 `_backZooms` 列表最小值对齐）
+  - 加 `_gestureBaseZoom` 在 `onScaleStart` 时锁定基线，避免连续 pinch 时 `currentZoom * scale` 累计漂移
+  ```dart
+  onScaleStart: (_) => _gestureBaseZoom = state.currentZoom,
+  onScaleUpdate: (d) {
+    final zoom = (_gestureBaseZoom * d.scale).clamp(0.5, 5.0);
+    notifier.setZoom(zoom);
+  },
+  ```
+
+### Bug #2：拍照无反馈
+- **现象**：按下快门后感觉"没反应"，等 1~2 秒才弹编辑面板，以为没点上
+- **根因**：`onCapture` 之前是 `await takePicture()` → 直接弹编辑面板，**没有**任何"按下了"的视觉/听觉信号
+- **修法**：在 `CameraScreen` 引入 `SingleTickerProviderStateMixin` + `AnimationController`，加 350ms 的 `TweenSequence` 闪白动画（150ms 渐白到 100% + 200ms 渐回 0），并把 `SystemSound.click` 一起触发：
+  ```dart
+  Future<void> _capture(CameraViewModel notifier) async {
+    _flashController.forward(from: 0);                          // 闪白
+    unawaited(SystemSound.play(SystemSoundType.click));         // 声效
+    final path = await notifier.takePicture();
+    if (path != null && mounted) { /* 弹编辑面板 */ }
+  }
+  ```
+  闪白层用 `IgnorePointer` 包裹盖在 Stack 最上，pointer 事件不穿透
+
+### Bug #3：相册是本机相册，不是 app 内 grid
+- **现象**：点击相册按钮进的是设备整个相册（用户的其他照片混在里面），不是 app 拍过的
+- **根因**：`lib/features/photo_album/photo_album_repository.dart` 用 `photo_manager` 读的是整个设备相册：
+  ```dart
+  PhotoManager.getAssetPathList(type: RequestType.image) // 设备全部
+  recent.getAssetListRange(start: 0, end: 100)          // 最近 100 张
+  ```
+- **修法**：新建一个**完全独立**的 `AppPhotoRepository`（`lib/features/photo_album/app_photo_repository.dart`）：
+  - **存储**：照片文件写到 `<documents>/app_photos/easy_beauty_<timestamp>.jpg`，路径索引写到 `manifest.json`（JSON，最新在前）
+  - **抽象接口**：`listAll()` / `add(bytes)` / `delete(paths)`
+  - **真实实现**：`AppPhotoRepositoryImpl`（落盘 + `path_provider` 拿 documents 目录）
+  - **测试实现**：`InMemoryAppPhotoRepository`（纯 list，不走 IO）
+  - `Provider` 默认绑定真实实现，测试里 override
+  - `FilterViewModel.saveProcessedImage` 改成两步：`PhotoAlbumWriter.saveImage` 写真册（兼容旧）+ `AppPhotoRepository.add(processed)` 注册到 app grid
+  - `PhotoAlbumScreen` 改读 `appPhotoRepositoryProvider`
+  - **新增长按多选删除**：默认 tap 打开全屏预览；长按进入多选模式（AppBar 显示「已选 N」+ 删除按钮）；多选模式里 tap toggle；系统返回 / 取消按钮退出多选
+  - 空态加 "还没有拍过照片" 提示
+
+### Bug #4：照片处理页 UX 缺陷（三合一）
+
+#### 子问题 4a：照片没显示全
+- **现象**：竖向手机拍的照片在 300pt 高的预览容器里被上下裁切（cover 模式）
+- **根因**：`FilterPanel` 的预览是 `Container(height: 300, fit: BoxFit.cover)`
+- **修法**：
+  - `BoxFit.contain` 完整显示
+  - 黑色底兜底（照片两侧或上下留白时不会突兀）
+  - `ClipRRect` + `AppRadii.xlAll` 圆角
+
+#### 子问题 4b：滤镜/美颜没分 tab
+- **现象**：3 个美颜滑杆和 5 个滤镜挤在同一个 BottomSheet 里很容易误触
+- **修法**：用 `TabController` + `TabBar` + `TabBarView`：
+  - Tab 0：滤镜（FilterCarousel）
+  - Tab 1：美颜（BeautySlider）
+  - 高度固定 200，TabBar 38pt
+
+#### 子问题 4c：滤镜/美颜不实时反映
+- **现象**：点滤镜 / 拉滑杆，预览图完全不变，要保存才能看到效果
+- **根因**：`FilterPanel` 的预览图直接 `Image.file(File(state.imagePath))`——只显示原图
+- **修法**：在 `FilterViewModelState` 加两个字段：
+  - `Uint8List? originalBytes`（原图缓存，避免每次重读盘）
+  - `Uint8List? previewBytes`（处理后的预览）
+  引入 `Timer` + 200ms debounce：`selectFilter` / `setSmooth` / `setWhiten` / `setSlim` 变化时调度 `_runProcess`：
+  1. 读原图（缓存到 `originalBytes`）
+  2. `processImage` 出处理后 bytes
+  3. 写入 `previewBytes` 触发 UI 重建
+  `setImage` 是 `immediate: true`（新照片不 debounce），其余改动走 200ms debounce（滑动 slider 时不会连发几十次重处理）
+  预览 widget：
+  ```dart
+  if (state.previewBytes != null)
+    Image.memory(state.previewBytes!, fit: BoxFit.contain, ...)
+  else if (state.imagePath != null)
+    Image.file(File(state.imagePath!), fit: BoxFit.contain, ...)
+  ```
+  右上角小 `CircularProgressIndicator` 表示正在处理中（不遮挡图）
+  `saveProcessedImage` 优先复用 `previewBytes`，省一次 process
+
+### Bug #5：保存照片被模糊
+- **现象**：磨皮滑杆拉到默认 30 就能看出照片明显糊掉
+- **根因**：`lib/services/image_processing_service.dart` 的 `applyBeauty` 磨皮参数太重：
+  ```dart
+  final radius = (smooth / 10).round();      // smooth=30 → radius=3
+  final blendFactor = smooth / 100;          // smooth=30 → 0.30
+  ```
+  高斯半径 3 已经能糊掉很多细节，混合 30% 像素直接变成"满脸磨皮感"，不是用户预期的"轻微磨皮"
+- **修法**：两个参数都缩小：
+  - `radius = (smooth / 30).round().clamp(1, 2)` —— smooth=30 → **1**，smooth=60 → **2**
+  - `blendFactor = smooth / 500` —— smooth=30 → **0.06**（6%），smooth=100 → **0.20**（20%）
+  效果：30 的磨皮 = 半径 1 的高斯 + 6% 混合，**只在皮肤纹理上做极轻微的平滑**，不再糊脸；100 的磨皮对应半径 2 + 20% 混合，仍然是"美颜"而不是"油画"
+  美白参数没动（`whiten / 100 * 30` 加 0~30 的亮度），合理
+
+### 修复总结表
+
+| Bug | 根因 | 修法 | 影响文件 |
+|---|---|---|---|
+| #1 0.5x 焦段 | pinch clamp 下限错 | clamp(0.5, 5.0) + baseZoom | `camera_screen.dart` |
+| #2 拍照无反馈 | 无闪白无声效 | AnimationController + SystemSound | `camera_screen.dart` |
+| #3 相册错 | 读 device album | 新 `AppPhotoRepository` + 长按删除 | `app_photo_repository.dart` (新) + `photo_album_screen.dart` + `filter_view_model.dart` |
+| #4a 裁切 | BoxFit.cover | BoxFit.contain + 黑色底 | `filter_panel.dart` |
+| #4b 没分 tab | 垂直堆叠 | TabBar + TabBarView | `filter_panel.dart` |
+| #4c 不实时 | Image.file 原图 | previewBytes + debounce | `filter_view_model.dart` + `filter_panel.dart` |
+| #5 模糊 | radius 太大 | radius /30、blend /500 | `image_processing_service.dart` |
+
+### 验证
+- 51/51 测试通过（新增 7 个回归测试：`AppPhotoRepository` 4 个 + `FilterViewModel` 实时预览 3 个）
+- `flutter analyze` 无新增 issue
+- commit `3a1a4ad` 一并提交
 
 ---
 
