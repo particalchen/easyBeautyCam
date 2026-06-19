@@ -9,6 +9,11 @@
 
 ### Fixed
 - **拍后编辑**：图片预览区加 `ConstrainedBox(maxHeight: 屏幕高 × 0.45)` 限高，竖向 portrait 照片不再把 BottomSheet 撑爆（之前会 `RenderFlex overflowed by 144 pixels`）
+- **拍后编辑**：去掉图片预览的黑色兜底背景，竖向照片左右留空区透出 BottomSheet 暖白底
+- **滤镜选择**：选中边框只圈住 50×50 颜色按钮，不再撑满整个 carousel 高度
+
+### Known
+- 真机在昏暗环境下拍摄的照片偏暗 —— 是相机端曝光问题（Flutter camera 包预览/拍摄曝光可能不一致），需要单独处理：要么相机端加 `setExposureOffset`/tap-to-focus，要么在保存前加自动亮度补偿。详情见 `docs/MEMO.md` 〇三节
 
 ## [Unreleased] — 2026-06-19
 

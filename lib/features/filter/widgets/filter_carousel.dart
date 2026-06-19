@@ -35,26 +35,27 @@ class FilterCarousel extends ConsumerWidget {
 
           return GestureDetector(
             onTap: () => notifier.selectFilter(filter),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+            child: Container(
               width: 70,
               margin: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                borderRadius: AppRadii.lgAll,
-                border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.transparent,
-                  width: 2,
-                ),
-              ),
+              // 外层只负责间距 + 给按钮预留水平位置
+              // 选中边框移到内层 50×50 按钮上（不再撑满整个 ListView 高度）
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
                       color: _getFilterPreviewColor(filter),
                       borderRadius: AppRadii.lgAll,
+                      border: isSelected
+                          ? Border.all(
+                              color: AppColors.primary,
+                              width: 2,
+                            )
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 4),

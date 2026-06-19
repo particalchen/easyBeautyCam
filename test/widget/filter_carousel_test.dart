@@ -131,5 +131,26 @@ void main() {
 
       expect(captured, FilterType.rixi);
     });
+
+    // 回归：2026-06-20 真机截图显示选中边框撑满 carousel 高度
+    // 原因：border 加在外层 AnimatedContainer（被父 SizedBox 100pt 撑高）上
+    // 修法：border 移到内层 50×50 按钮；外层只负责宽度间距
+    testWidgets('选中边框只包住 50×50 按钮，不撑满高度', (tester) async {
+      await tester.pumpWidget(buildScope(selected: FilterType.coral));
+      await tester.pumpAndSettle();
+
+      // FilterCarousel 里的 5 个滤镜都各自有一个 50×50 AnimatedContainer（带颜色块）
+      // 选中时这个 AnimatedContainer 还带 Border.all
+      final allButtons = find.byType(AnimatedContainer);
+      expect(allButtons, findsAtLeastNWidgets(5));
+
+      // 「珊瑚」对应的那个应该是 50×50（不再被父级撑到 70×100）
+      // 找所有 AnimatedContainer 并断言没有任何一个高度 = 100
+      final heights = tester.widgetList<AnimatedContainer>(allButtons)
+          .map((w) => tester.getSize(find.byWidget(w)).height)
+          .toSet();
+      expect(heights.contains(100), isFalse,
+          reason: 'FilterCarousel 里的 AnimatedContainer 不应被撑到 100pt 高');
+    });
   });
 }

@@ -212,6 +212,37 @@ return Padding(
 
 ---
 
+## 〇三、编辑页 UX 二轮修复（2026-06-20）
+
+真机截图发现的 3 个新问题，修 2 个，剩 1 个（照片暗）需要用户决定方向。
+
+### 已修 #1：图片预览黑色背景
+- **现象**：`_PhotoPreview` 用 `ColoredBox(color: Colors.black)` 兜底，导致竖向照片左右两侧出现黑色条
+- **用户反馈**：不想要黑色背景（编辑页面是暖白底色，黑条很突兀）
+- **修法**：去掉 `ColoredBox`，让图片在 `SizedBox.expand` 里直接 contain；左右留空区域透出 BottomSheet 的 `AppColors.overlayBg` 暖白底
+- 顺手把处理中指示器从白色改成珊瑚色（原白色在浅底不可见）
+
+### 已修 #2：滤镜选中边框撑满高度
+- **现象**：选中「珊瑚」时，珊瑚色边框不是围住 50×50 颜色块，而是圈住整个 ListView 高度（~100pt）
+- **根因**：`AnimatedContainer(width: 70)` 放在 `SizedBox(height: 100) > ListView` 里，被父级约束撑到 100pt 高；`Border.all` 加在这个外层 `AnimatedContainer` 上 → 边框跟着撑满
+- **修法**：把 `Border.all` 移到内层 50×50 按钮上；外层只用 `Container(width: 70)` 给水平间距
+- **Regression 测试**：「选中边框只包住 50×50 按钮，不撑满高度」—— 反向验证：临时把 border 改回外层后测试会失败
+
+### 未修 #3：照片特别暗（等用户决策）
+- **观察**：截图环境是昏暗办公室桌面（Mac mini + 键盘），整体光线弱；照片看起来确实暗
+- **可能根因**：
+  1. **环境光本身暗** —— 物理层面就这样，不算 bug
+  2. **Flutter camera 包预览和拍摄曝光不一致** —— 已知问题，预览流看起来正常，takePicture 后变暗。修法是相机端加 `setExposureOffset` 或 tap-to-focus + 曝光锁定
+  3. **image 包 decode 损失** —— 一般不会，但可验证
+- **现状**：未动代码，等用户确认方向（环境本来就暗 / 预览亮但保存暗 / 加自动提亮）。选「环境本来就暗」就什么都不动；选「预览亮但保存暗」会去动 camera_service；选「加自动提亮」会去动 image_processing_service
+
+### 验证
+- 53/53 测试通过
+- `flutter analyze` 无新增 issue
+- 7 个 pre-existing withOpacity lint 无变化
+
+---
+
 ## 一、项目概述
 
 **项目名称**：EasyBeautyCam
