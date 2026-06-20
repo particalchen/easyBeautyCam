@@ -17,6 +17,7 @@
 - **相机 0.5x 焦段无效**：相机端查 `getMinZoomLevel` / `getMaxZoomLevel`，UI 层 `CameraControls` 自动过滤到硬件支持范围，pinch 范围同步
 - **相册全屏预览**：关闭按钮从默认 IconButton 升级为 48pt 圆形 + 半透明深色底，固定右上角
 - **美颜滑动条**：字号 14→12，track 4→2pt，thumb 半径 14→8，间距 sm→4pt；编辑面板 TabView 高度 200→150、预览区 maxHeight 比例 0.45→0.38
+- **filter/裁切编辑器**：切换比例时图片不再被强制拉伸（applyTransform 改为按比例裁切）；切换比例不再触发预览重裁切（setCropRatio 仅改遮罩）；InteractiveCropEditor 允许 <1x 拉远（minScale=0.5）；图片用 BoxFit.cover 铺满 viewport，触摸热区更大；_syncFromProps 镜像 translation 归一化语义修复 round-trip 跳变
 
 ### Changed
 - **焦段按钮文字**：统一为 "Nx" 格式（`0.5x` / `1x` / `2x` / `3x`），去掉原来的 `.5` / `2` / `3` 不一致写法

@@ -7,6 +7,10 @@
 
 ## 〇、最新进度（2026-06-20）
 
+### 裁切编辑器 iOS 风格 bugfix ✅ 完成（5 commits：`87bbf33` `56439be` `87c63be` `8763beb` `eaa46c7`）
+
+详见 [〇五-2](#〇五-2-bugfix-2026-06-20)。
+
 ### 自由裁切 + 美颜滑条间距 ✅ 完成（commit `b2d47b8`，9 commits）
 1. **裁切改为交互式**：顶部预览 = `InteractiveCropEditor`（双指缩放 + 单指拖动 + 裁切框遮罩），三个 tab 共享；切换比例时 transform 不重置（用户拍板）；裁切 tab 加重置按钮
 2. **美颜滑条间距 4pt → 12pt**：之前 8pt 砍到 4pt 砍过头，操作容易误触
@@ -456,6 +460,20 @@ final Offset translation; // 默认 Offset.zero
 ### 一并修改的 2 项与之前的关系
 - #1 自由裁切：把 〇四节 #6「裁切 Tab」的固定中心裁切升级为交互式
 - #2 滑条间距：把 〇四节 #8 的 4pt 调回 12pt（之前砍过头）
+
+---
+
+### 〇五-2 bugfix (2026-06-20)
+
+修复裁切编辑器两个 bug：
+
+1. **切换比例图片被拉扯变形** —— `applyTransform` 重写为"按比例裁切保持原图宽高比"，不再强制 resize；ViewModel `setCropRatio` 不再触发预览重裁切（预览 = 未裁切原图）
+2. **无法自由缩放/平移** —— InteractiveCropEditor `minScale` 从 1.0 改为 0.5；Image `fit` 从 `BoxFit.contain` 改为 `BoxFit.cover`；translation 归一化用 viewport 半尺寸
+
+修复后行为对齐 iOS Photos 裁切编辑器：
+- 预览 = 滤镜处理后未裁切图，比例切换只改遮罩
+- 双指缩放范围 [0.5, 4.0]，单指可拖出裁切框边界（露出黑色遮罩）
+- 保存时一次性按 transform + 目标比例裁切，输出保持原图宽高比
 
 ---
 
