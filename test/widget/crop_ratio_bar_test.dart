@@ -93,17 +93,47 @@ void main() {
     expect(stub.state.scale, 1.0);
   });
 
-  testWidgets('CropRatioBar 重置按钮位置在比例行最右侧', (tester) async {
+  testWidgets('CropRatioBar 重置按钮在标题行最右侧（与 chips 不在同一行）', (tester) async {
     await _pump(tester, _Stub(const FilterViewModelState()));
     final resetRect = tester.getRect(find.byIcon(Icons.refresh));
-    for (final label in ['原图', '16:9', '4:3', '1:1', '3:4', '9:16']) {
-      final chipRect = tester.getRect(find.text(label));
-      expect(
-        resetRect.center.dx,
-        greaterThan(chipRect.center.dx),
-        reason: '重置按钮 ($label) 应该位于 $label chip 的右侧',
-      );
-    }
+    // 标题 "裁切比例" 文本的 Y 坐标应当接近重置按钮的 Y（在同一行）
+    final labelRect = tester.getRect(find.text('裁切比例'));
+    expect(
+      (resetRect.center.dy - labelRect.center.dy).abs(),
+      lessThan(20), // tolerance: same row
+      reason: '重置按钮应与 "裁切比例" 标题在同一行',
+    );
+    // 重置按钮的 X 应大于标题文本（最右侧）
+    expect(
+      resetRect.center.dx,
+      greaterThan(labelRect.center.dx),
+      reason: '重置按钮应位于标题文本右侧',
+    );
+  });
+
+  testWidgets('CropRatioBar chips 行只有 6 个 chip，无重置', (tester) async {
+    await _pump(tester, _Stub(const FilterViewModelState()));
+    // 重置按钮的 Y 与 chips 文字的 Y 差距较大（不同行）
+    final resetRect = tester.getRect(find.byIcon(Icons.refresh));
+    final originalChipRect = tester.getRect(find.text('原图'));
+    expect(
+      (resetRect.center.dy - originalChipRect.center.dy).abs(),
+      greaterThan(15), // different rows
+      reason: '重置按钮不应在 chips 行',
+    );
+  });
+
+  testWidgets('CropRatioBar 比例 chip 图标无外框，6 个 CustomPaint 都是 (26,18)',
+      (tester) async {
+    await _pump(tester, _Stub(const FilterViewModelState()));
+    // 6 个 chip 各画一个 CustomPaint（无外框角标）。
+    // IconButton 的 Icons.refresh 也走 CustomPaint，因此按 size 过滤：
+    // 只有 chip 的 painter size 是 (26, 18)。
+    final paints = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.size == const Size(26, 18),
+    );
+    expect(paints, findsNWidgets(6),
+        reason: '应恰好 6 个 size=(26,18) 的 CustomPaint（每个 chip 一个）');
   });
 
   testWidgets('CropRatioBar 默认状态下重置按钮 disabled', (tester) async {

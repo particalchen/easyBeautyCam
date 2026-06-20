@@ -260,6 +260,11 @@ void main() {
       expect(state.cropRatio, CropRatio.original);
     });
 
+    test('FilterViewModelState 默认 selectedFilter 是 FilterType.original', () {
+      const state = FilterViewModelState();
+      expect(state.selectedFilter, FilterType.original);
+    });
+
     test(
         'saveProcessedImage 在 cropRatio=original + scale!=1 时调 applyTransform(targetRatio: null)',
         () async {

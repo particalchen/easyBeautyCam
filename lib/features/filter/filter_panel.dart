@@ -50,7 +50,7 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
     return Scaffold(
       backgroundColor: AppColors.overlayBg,
       body: SafeArea(
-        top: false,
+        top: true,
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [

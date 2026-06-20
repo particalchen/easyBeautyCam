@@ -10,7 +10,11 @@ import '../../../core/theme/app_typography.dart';
 import '../../../services/image_processing_service.dart';
 import '../filter_view_model.dart';
 
-/// 裁切比例选择条 —— 6 个比例按钮（原图 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16）+ 重置按钮（最右侧图标）
+/// 裁切比例选择条 —— 6 个比例按钮（原图 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16）
+///
+/// 布局：
+///   ┌─ 标题行：裁切比例 [左] | 重置按钮 [右] ─┐
+///   ├─ chips 行：6 个比例 chip ─┤
 class CropRatioBar extends ConsumerWidget {
   const CropRatioBar({super.key});
 
@@ -33,17 +37,28 @@ class CropRatioBar extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── 标题行：裁切比例 [左] | 重置按钮 [右] ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
-          child: Text(
-            '裁切比例',
-            style: AppTypography.bodyMd.copyWith(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 12,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '裁切比例',
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              _ResetIconButton(
+                enabled: canReset,
+                onTap: () => notifier.resetTransform(),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
+        // ── chips 行：只有 6 个 chip，无重置 ──
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -60,11 +75,6 @@ class CropRatioBar extends ConsumerWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
-                // 重置按钮：放在最右侧
-                _ResetIconButton(
-                  enabled: canReset,
-                  onTap: () => notifier.resetTransform(),
-                ),
               ],
             ),
           ),
@@ -108,16 +118,12 @@ class _RatioChip extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 上方：矩形图示（28pt 高，按宽高比显示）
-            SizedBox(
-              height: 28,
-              width: 40,
-              child: CustomPaint(
-                painter: _RatioIconPainter(
-                  ratio: ratio ?? 1.0, // 原图显示方形
-                  color: isSelected ? Colors.white : AppColors.onSurface,
-                  isOriginal: ratio == null,
-                ),
+            // 上方：矩形图示（intrinsic size 26×18，按宽高比显示）
+            CustomPaint(
+              size: const Size(26, 18),
+              painter: _RatioIconPainter(
+                ratio: ratio ?? 1.0, // 原图显示方形
+                color: isSelected ? Colors.white : AppColors.onSurface,
               ),
             ),
             const SizedBox(height: 4),
@@ -137,16 +143,14 @@ class _RatioChip extends StatelessWidget {
   }
 }
 
-/// 比例图示 painter：按宽高比画矩形
+/// 比例图示 painter：按宽高比画矩形（去掉原图的 4 角外框，更精简）
 class _RatioIconPainter extends CustomPainter {
   final double ratio; // width / height
   final Color color;
-  final bool isOriginal;
 
   _RatioIconPainter({
     required this.ratio,
     required this.color,
-    required this.isOriginal,
   });
 
   @override
@@ -169,70 +173,16 @@ class _RatioIconPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 1.2;
     canvas.drawRect(frameRect, paint);
-
-    // 原图 chip 额外画一个 "无裁切" 标识（角标或全屏标记）
-    if (isOriginal) {
-      // 在矩形外画 4 个角（表示"完整保留"）
-      final cornerLen = 4.0;
-      final cornerPaint = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      // 左上
-      canvas.drawLine(
-        Offset(0, cornerLen),
-        const Offset(0, 0),
-        cornerPaint,
-      );
-      canvas.drawLine(
-        const Offset(0, 0),
-        Offset(cornerLen, 0),
-        cornerPaint,
-      );
-      // 右上
-      canvas.drawLine(
-        Offset(size.width - cornerLen, 0),
-        Offset(size.width, 0),
-        cornerPaint,
-      );
-      canvas.drawLine(
-        Offset(size.width, 0),
-        Offset(size.width, cornerLen),
-        cornerPaint,
-      );
-      // 左下
-      canvas.drawLine(
-        Offset(0, size.height - cornerLen),
-        Offset(0, size.height),
-        cornerPaint,
-      );
-      canvas.drawLine(
-        Offset(0, size.height),
-        Offset(cornerLen, size.height),
-        cornerPaint,
-      );
-      // 右下
-      canvas.drawLine(
-        Offset(size.width - cornerLen, size.height),
-        Offset(size.width, size.height),
-        cornerPaint,
-      );
-      canvas.drawLine(
-        Offset(size.width, size.height - cornerLen),
-        Offset(size.width, size.height),
-        cornerPaint,
-      );
-    }
   }
 
   @override
   bool shouldRepaint(_RatioIconPainter old) =>
-      old.ratio != ratio || old.color != color || old.isOriginal != isOriginal;
+      old.ratio != ratio || old.color != color;
 }
 
-/// 重置按钮：圆形 IconButton，放在比例行最右侧
+/// 重置按钮：圆形 IconButton，放在「裁切比例」标题行最右侧
 class _ResetIconButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;

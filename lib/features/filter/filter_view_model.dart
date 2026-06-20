@@ -38,7 +38,7 @@ class FilterViewModelState {
 
   const FilterViewModelState({
     this.imagePath,
-    this.selectedFilter = FilterType.coral,
+    this.selectedFilter = FilterType.original,
     this.cropRatio = CropRatio.original,
     this.smooth = AppConstants.defaultBeautySmooth,
     this.whiten = AppConstants.defaultBeautyWhiten,
