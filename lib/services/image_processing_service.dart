@@ -7,19 +7,19 @@ enum FilterType { original, coral, gangfeng, rixi, jiaopian }
 
 /// 照片裁切比例 —— 编辑面板「裁切」tab 候选
 ///
-/// - free  = 不裁切（保留原比例）
+/// - original = 不裁切（保留原比例）
 /// - 16_9  = 横屏宽幅
 /// - 4_3   = 经典相机比例
 /// - 1_1   = 方形（社交头像常用）
 /// - 3_4   = 人像常用
 /// - 9_16  = 竖屏全屏
-enum CropRatio { free, ratio_16_9, ratio_4_3, ratio_1_1, ratio_3_4, ratio_9_16 }
+enum CropRatio { original, ratio_16_9, ratio_4_3, ratio_1_1, ratio_3_4, ratio_9_16 }
 
 extension CropRatioX on CropRatio {
-  /// 比例值 (width / height)；free 返回 null 表示不约束
+  /// 比例值 (width / height)；original 返回 null 表示不约束
   double? get ratio {
     switch (this) {
-      case CropRatio.free:
+      case CropRatio.original:
         return null;
       case CropRatio.ratio_16_9:
         return 16 / 9;
@@ -37,8 +37,8 @@ extension CropRatioX on CropRatio {
   /// UI 显示文本
   String get label {
     switch (this) {
-      case CropRatio.free:
-        return '自由';
+      case CropRatio.original:
+        return '原图';
       case CropRatio.ratio_16_9:
         return '16:9';
       case CropRatio.ratio_4_3:
@@ -273,7 +273,7 @@ class ImageProcessingService {
   /// 参数：
   /// - [scale] ∈ [0.5, 4.0]：1.0 = 全图可见；>1 放大（只显示中心区域）；<1 拉远（保留更多）
   /// - [translation] ∈ [-1, 1]：相对图像中心的归一化偏移
-  /// - [targetRatio] == null（CropRatio.free）→ 输出按 scale/translation 决定的可见矩形，保持原图宽高比
+  /// - [targetRatio] == null（CropRatio.original）→ 输出按 scale/translation 决定的可见矩形，保持原图宽高比
   /// - [targetRatio] != null → 在可见矩形上按目标宽高比二次裁切，保持原图宽高比（**不拉伸**）
   Future<Uint8List> applyTransform(
     Uint8List imageBytes, {

@@ -107,13 +107,13 @@ void main() {
       expect(outImage.height, 200, reason: '9:16 裁切后高度=原高');
     });
 
-    test('自由 (free) 不裁切，输出尺寸与原图一致', () async {
+    test('原图 (original) 不裁切，输出尺寸与原图一致', () async {
       final src = img.Image(width: 300, height: 200);
       img.fill(src, color: img.ColorRgb8(120, 120, 120));
       final srcBytes = Uint8List.fromList(img.encodePng(src));
 
       final svc = ImageProcessingService();
-      final out = await svc.crop(srcBytes, CropRatio.free);
+      final out = await svc.crop(srcBytes, CropRatio.original);
       final outImage = img.decodeImage(out);
       expect(outImage, isNotNull);
       expect(outImage!.width, 300);
@@ -283,6 +283,16 @@ void main() {
       final decoded = img.decodeImage(out)!;
       expect(decoded.width, 3000);
       expect(decoded.height, 3000);
+    });
+  });
+
+  group('CropRatio.original 重命名', () {
+    test('CropRatio.original.ratio 返回 null（语义：不约束比例）', () {
+      expect(CropRatio.original.ratio, isNull);
+    });
+
+    test('CropRatio.original.label 返回 "原图"', () {
+      expect(CropRatio.original.label, '原图');
     });
   });
 }
