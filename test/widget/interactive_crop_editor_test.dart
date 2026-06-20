@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:easy_beauty_cam/features/filter/widgets/interactive_crop_editor.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
+// ignore: depend_on_referenced_packages
+import 'package:image/image.dart' as img;
 
 /// 1x1 透明 PNG
 final _kTinyPng = Uint8List.fromList(const [
@@ -75,5 +77,39 @@ void main() {
     final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
     expect(viewer.minScale, 0.5);
     expect(viewer.maxScale, 4.0);
+  });
+
+  testWidgets('InteractiveCropEditor 内 Image 用 BoxFit.cover 铺满', (tester) async {
+    final src = img.Image(width: 1, height: 1);
+    final bytes = Uint8List.fromList(img.encodePng(src));
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 300,
+          height: 300,
+          child: InteractiveCropEditor(
+            previewBytes: bytes,
+            imagePath: null,
+            cropRatio: CropRatio.ratio_1_1,
+            scale: 1.0,
+            translation: Offset.zero,
+            onTransformChanged: (_, __) {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    // 找到 InteractiveViewer 内的 Image
+    final images = tester.widgetList<Image>(find.descendant(
+      of: find.byType(InteractiveViewer),
+      matching: find.byType(Image),
+    ));
+    expect(images, isNotEmpty);
+    // 至少有一个 Image 用 BoxFit.cover
+    final coverImages = images.where((img) => img.fit == BoxFit.cover);
+    expect(coverImages.length, greaterThan(0),
+        reason: 'Image 应该用 BoxFit.cover 铺满 viewport 而非 contain');
   });
 }

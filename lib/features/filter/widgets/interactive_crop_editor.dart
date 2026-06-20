@@ -80,9 +80,11 @@ class _InteractiveCropEditorState extends State<InteractiveCropEditor> {
       final tx = m.getTranslation().x;
       final ty = m.getTranslation().y;
       final size = context.size ?? const Size(300, 300);
-      // 平移归一化到 [-1, 1]
-      final ntx = (tx / size.width).clamp(-1.0, 1.0);
-      final nty = (ty / size.height).clamp(-1.0, 1.0);
+      // 用 viewport 半尺寸归一化：translation = size.width/2 时 ntx=1（拖出裁切框半幅）
+      final halfW = size.width / 2;
+      final halfH = size.height / 2;
+      final ntx = halfW > 0 ? (tx / halfW).clamp(-1.0, 1.0) : 0.0;
+      final nty = halfH > 0 ? (ty / halfH).clamp(-1.0, 1.0) : 0.0;
       widget.onTransformChanged(s, Offset(ntx, nty));
     });
   }
@@ -101,9 +103,9 @@ class _InteractiveCropEditorState extends State<InteractiveCropEditor> {
             onInteractionEnd: (_) => _onInteractionEnd(),
             child: Center(
               child: widget.previewBytes != null
-                  ? Image.memory(widget.previewBytes!, fit: BoxFit.contain)
+                  ? Image.memory(widget.previewBytes!, fit: BoxFit.cover)
                   : (widget.imagePath != null
-                      ? Image.file(File(widget.imagePath!), fit: BoxFit.contain)
+                      ? Image.file(File(widget.imagePath!), fit: BoxFit.cover)
                       : const SizedBox.shrink()),
             ),
           ),
