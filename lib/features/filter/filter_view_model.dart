@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 
 import '../../services/image_processing_service.dart';
 import '../../services/photo_album_writer.dart';
@@ -182,9 +183,22 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
       slim: state.slim,
     );
 
-    // 裁切（如果选了非自由比例）
-    if (state.cropRatio != CropRatio.free) {
-      processed = await _processingService.crop(processed, state.cropRatio);
+    // 裁切 + transform
+    final ratio = state.cropRatio;
+    if (ratio != CropRatio.free && processed.isNotEmpty) {
+      final procImg = _safeDecodeImage(processed);
+      if (procImg != null) {
+        final targetRatio = ratio.ratio!;
+        final targetH = procImg.height;
+        final targetW = (targetH * targetRatio).round();
+        processed = await _processingService.applyTransform(
+          processed,
+          scale: state.scale,
+          translation: state.translation,
+          targetWidth: targetW,
+          targetHeight: targetH,
+        );
+      }
     }
 
     if (!mounted) return;
@@ -209,6 +223,29 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
       slim: state.slim,
     );
 
+    // 裁切 + transform（与 _runProcess 一致）
+    final ratio = state.cropRatio;
+    if (ratio != CropRatio.free && bytes != null) {
+      final procImg = _safeDecodeImage(bytes);
+      if (procImg != null) {
+        final targetRatio = ratio.ratio!;
+        final targetH = procImg.height;
+        final targetW = (targetH * targetRatio).round();
+        bytes = await _processingService.applyTransform(
+          bytes,
+          scale: state.scale,
+          translation: state.translation,
+          targetWidth: targetW,
+          targetHeight: targetH,
+        );
+      }
+    }
+
+    if (bytes == null) {
+      state = state.copyWith(isProcessing: false);
+      return null;
+    }
+
     final filename =
         'easy_beauty_${DateTime.now().millisecondsSinceEpoch}.png';
     await _photoAlbumWriter.saveImage(bytes, filename: filename);
@@ -221,6 +258,15 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
   Future<Uint8List> _readImageBytes(String path) async {
     final file = File(path);
     return await file.readAsBytes();
+  }
+
+  /// 包装 `img.decodeImage`，对非法字节（mock/损坏文件）返回 null 而不是抛异常。
+  img.Image? _safeDecodeImage(Uint8List bytes) {
+    try {
+      return img.decodeImage(bytes);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

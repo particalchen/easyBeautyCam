@@ -4,6 +4,7 @@ import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
@@ -13,7 +14,19 @@ import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 /// 测试专用：记录每次 processImage 调用 + 返回不同 bytes（用于断言"参数传对"）
 class _CapturingProcessingService extends ImageProcessingService {
   int callCount = 0;
-  Uint8List _bytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47]);
+  int applyTransformCallCount = 0;
+  double? lastScale;
+  Offset? lastTranslation;
+  int? lastTargetWidth;
+  int? lastTargetHeight;
+  // 用真实可解码的 1x1 PNG（每次 append 计数器字节来区分调用），
+  // 让 view model 里的 `img.decodeImage(processed)` 走通。
+  final Uint8List _basePng = Uint8List.fromList(img.encodePng(
+    img.Image(width: 1, height: 1),
+  ));
+  Uint8List _bytes = Uint8List.fromList(img.encodePng(
+    img.Image(width: 1, height: 1),
+  ));
 
   @override
   Future<Uint8List> processImage(
@@ -24,8 +37,25 @@ class _CapturingProcessingService extends ImageProcessingService {
     double slim = 0,
   }) async {
     callCount++;
-    _bytes = Uint8List.fromList([..._bytes, callCount & 0xff]);
+    // 复用基础 PNG 字节 + 在尾部追加计数器字节，让每个 call 返回值仍然合法 PNG 头
+    _bytes = Uint8List.fromList([..._basePng, callCount & 0xff]);
     return _bytes;
+  }
+
+  @override
+  Future<Uint8List> applyTransform(
+    Uint8List imageBytes, {
+    required double scale,
+    required Offset translation,
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
+    applyTransformCallCount++;
+    lastScale = scale;
+    lastTranslation = translation;
+    lastTargetWidth = targetWidth;
+    lastTargetHeight = targetHeight;
+    return imageBytes;
   }
 }
 
@@ -151,6 +181,21 @@ void main() {
       expect(state.scale, 2.5, reason: '切换比例不能把 scale 拉回 1.0');
       expect(state.translation, const Offset(30, 40), reason: '切换比例不能把 translation 清零');
       expect(state.cropRatio, CropRatio.ratio_1_1);
+    });
+
+    test('setTransform 触发 applyTransform 调用', () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setCropRatio(CropRatio.ratio_1_1);
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final c1 = svc.applyTransformCallCount;
+
+      notifier.setTransform(scale: 2.0, translation: const Offset(0.1, 0.2));
+      await Future<void>.delayed(const Duration(milliseconds: 280));
+
+      expect(svc.applyTransformCallCount, greaterThan(c1));
+      expect(svc.lastScale, 2.0);
+      expect(svc.lastTranslation, const Offset(0.1, 0.2));
     });
   });
 }
