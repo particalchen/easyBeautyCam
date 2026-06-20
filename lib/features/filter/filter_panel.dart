@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +10,7 @@ import 'filter_view_model.dart';
 import 'widgets/beauty_slider.dart';
 import 'widgets/crop_ratio_bar.dart';
 import 'widgets/filter_carousel.dart';
+import 'widgets/interactive_crop_editor.dart';
 
 /// 拍后编辑页：图片预览 + 滤镜/美颜 tab
 ///
@@ -112,7 +111,29 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
               ),
             ),
             // ── 图片预览 ──
-            if (state.imagePath != null) _PhotoPreview(state: state),
+            if (state.imagePath != null || state.previewBytes != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.marginMain),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.38,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: AppRadii.xlAll,
+                    child: InteractiveCropEditor(
+                      previewBytes: state.previewBytes,
+                      imagePath: state.imagePath,
+                      cropRatio: state.cropRatio,
+                      scale: state.scale,
+                      translation: state.translation,
+                      onTransformChanged: (s, t) => ref
+                          .read(filterViewModelProvider.notifier)
+                          .setTransform(scale: s, translation: t),
+                    ),
+                  ),
+                ),
+              ),
             // ── TabBar ──
             TabBar(
               controller: _tabController,
@@ -157,61 +178,5 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
   }
 }
 
-/// 图片预览：全宽 + contain 不裁切 + 处理后实时反映
-///
-/// 高度限制：max 屏幕高 45%，避免竖向照片撑爆 bottomSheet
-class _PhotoPreview extends StatelessWidget {
-  final FilterViewModelState state;
-  const _PhotoPreview({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    // 屏幕高 - 顶部栏 ~50 - TabBar 38 - TabView 150 - bottom padding 16
-    // ≈ 屏幕高 38%，给照片预览让出空间的同时仍能完整 contain 竖向照片
-    final maxPreviewHeight = MediaQuery.of(context).size.height * 0.38;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxPreviewHeight),
-        child: ClipRRect(
-          borderRadius: AppRadii.xlAll,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // 主预览图：按 available 尺寸 contain，竖向照片按比例缩小到 maxHeight
-              // 背景透明（透出 BottomSheet 暖白底），不再有黑色兜底
-              SizedBox.expand(
-                child: state.previewBytes != null
-                    ? Image.memory(
-                        state.previewBytes!,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      )
-                    : (state.imagePath != null
-                        ? Image.file(
-                            File(state.imagePath!),
-                            fit: BoxFit.contain,
-                          )
-                        : const SizedBox.shrink()),
-              ),
-              // 处理中弱指示器（不遮挡图）
-              if (state.isPreviewProcessing)
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+/// 图片预览已替换为 InteractiveCropEditor（支持双指缩放 / 单指拖动 + 裁切框遮罩）
+/// 旧的 _PhotoPreview 类已删除。
