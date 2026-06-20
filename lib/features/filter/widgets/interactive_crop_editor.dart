@@ -58,10 +58,18 @@ class _InteractiveCropEditorState extends State<InteractiveCropEditor> {
   }
 
   void _syncFromProps() {
-    final m = Matrix4.identity()
-      ..translate(widget.translation.dx, widget.translation.dy)
-      ..scale(widget.scale);
-    _ctrl.value = m;
+    // context.size 在 initState 阶段尚未确定（render tree 未建立），
+    // 需要延后到第一帧后再读取。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = context.size ?? const Size(300, 300);
+      final halfW = size.width / 2;
+      final halfH = size.height / 2;
+      final m = Matrix4.identity()
+        ..translate(widget.translation.dx * halfW, widget.translation.dy * halfH)
+        ..scale(widget.scale);
+      _ctrl.value = m;
+    });
   }
 
   @override

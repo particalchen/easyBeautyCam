@@ -112,4 +112,37 @@ void main() {
     expect(coverImages.length, greaterThan(0),
         reason: 'Image 应该用 BoxFit.cover 铺满 viewport 而非 contain');
   });
+
+  testWidgets('_syncFromProps 用 viewport 半尺寸转换 translation', (tester) async {
+    final src = img.Image(width: 1, height: 1);
+    final bytes = Uint8List.fromList(img.encodePng(src));
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 300,
+          height: 300,
+          child: InteractiveCropEditor(
+            previewBytes: bytes,
+            imagePath: null,
+            cropRatio: CropRatio.ratio_1_1,
+            scale: 1.0,
+            translation: const Offset(0.5, 0), // 归一化 0.5
+            onTransformChanged: (_, __) {},
+          ),
+        ),
+      ),
+    ));
+    // 第一次 pump 完成 build；第二次 pump 触发 addPostFrameCallback 中的 _syncFromProps。
+    await tester.pump();
+    await tester.pump();
+
+    final viewer =
+        tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    final matrix = viewer.transformationController!.value;
+    // 期望：translation.x = 0.5 * (300/2) = 75 像素
+    final actualTx = matrix.getTranslation().x;
+    expect(actualTx, closeTo(75.0, 0.1),
+        reason: '_syncFromProps 应该把 translation 归一化值乘以半尺寸');
+  });
 }
