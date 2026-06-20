@@ -26,6 +26,16 @@
 - **相机点击对焦曝光**：在 CameraPreview 上点击，调用 `setFocusPoint` + `setExposurePoint`，并显示 0.9s 黄色对焦指示框
 - **照片编辑裁切**：FilterPanel 增加「裁切」Tab（第三个），提供 自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16 六个比例按钮；`image_processing_service.crop` 用 `img.copyCrop` 做中心裁切；`FilterViewModel.cropRatio` 字段 + `setCropRatio` 方法，选中后 debounce 触发实时裁切预览
 - 62 个 widget/unit 测试（含 2 个亮度 + 4 个裁切 + 2 个硬件 zoom 过滤回归）
+- **拍后编辑：交互式裁切**：双指缩放（1.0~4.0x）+ 单指拖动；三档比例框可见，自由比例退化为全图；裁切 tab 加「重置」按钮（仅当 transform 非默认时可点）
+- `FilterViewModelState` 新增 `scale` / `translation` 字段 + `setTransform` / `resetTransform` 方法（注意：`setCropRatio` 不重置 transform）
+- `ImageProcessingService.applyTransform` 公开方法：按 zoom + pan 从源图提取可见区域并 resize
+
+### Changed
+- **美颜滑条间距**：4pt → 12pt（`AppSpacing.gutterGrid`）
+- **拍后编辑顶部预览**：从静态 `Image.memory` 改为 `InteractiveCropEditor`，三个 tab 共享同一编辑器
+
+### Architecture
+- 处理流水线：`filter → beauty → normalizeBrightness → applyTransform`（applyTransform 内部按目标比例 resize，不再单独调 crop）
 
 ### Known
 - 暂无

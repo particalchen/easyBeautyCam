@@ -7,6 +7,12 @@
 
 ## 〇、最新进度（2026-06-20）
 
+### 自由裁切 + 美颜滑条间距 ✅ 完成（commit `b2d47b8`，9 commits）
+1. **裁切改为交互式**：顶部预览 = `InteractiveCropEditor`（双指缩放 + 单指拖动 + 裁切框遮罩），三个 tab 共享；切换比例时 transform 不重置（用户拍板）；裁切 tab 加重置按钮
+2. **美颜滑条间距 4pt → 12pt**：之前 8pt 砍到 4pt 砍过头，操作容易误触
+- 流水线：filter → beauty → normalizeBrightness → applyTransform（之前是单独 crop，现在 applyTransform 内部按目标比例 resize）
+- 14 个新测试（applyTransform × 4 + transform state/methods × 3 + InteractiveCropEditor × 3 + 重置按钮 × 2 + others × 2），共 76/76 通过
+
 ### 相机 / 编辑 / 相册 三端 UX 批量调整 ✅ 完成（8/8，commit `ee5aa3b`）
 1. **相册全屏关闭按钮**：默认 IconButton 太小、位置偏左 → 48pt 圆形 + 半透明深色底 + 固定右上角
 2. **焦段按钮文字统一**：`0.5x` / `1x` / `2x` / `3x`（去掉之前 `.5` / `2` / `3` 不一致写法）
@@ -367,6 +373,89 @@ return Padding(
 ### 一并修改的 8 项 vs 之前修法的关系
 - #3 实时相机偏亮：撤销了 `〇三节 #3` 中「相机端加 setExposureOffset(+1.0)」那半边；处理端 `normalizeBrightness` 保留
 - #4 0.5x 焦段：用硬件 query 替代了 `〇一节 #1` 里的「clamp 下限 0.5」软修法
+
+---
+
+## 〇五、自由裁切 + 美颜滑条间距（2026-06-20）
+
+第二轮 UX 微调，2 项改动，76/76 测试通过。
+
+### #1 裁切改为交互式（双指缩放 + 单指拖动）
+
+**背景**：〇四节 #6 加的「裁切」Tab 是固定中心裁切（`img.copyCrop` 直接从源图中心裁出目标比例），用户无法：
+- 调整裁切框位置（主体偏离中心时无法对准）
+- 缩放后再裁切（先 zoom in 主体，再选比例）
+
+**修法**：
+
+**1) 新 widget `lib/features/filter/widgets/interactive_crop_editor.dart`**：
+- `StatefulWidget` + `InteractiveViewer` + `TransformationController`
+- 双指 pinch 缩放（`minScale: 1.0, maxScale: 4.0`），单指拖动平移
+- 手势结束 200ms debounce 回调 `onTransformChanged(scale, translation)`
+- 顶部叠一层 `CustomPaint` 裁切框遮罩：
+  - 框外画半透明黑色（alpha 0.55）
+  - 框边画 1.5pt `AppColors.primary`（珊瑚色）
+- 自由比例下不画遮罩（框退化为全图边界）
+- `previewBytes` 优先（实时预览）；无则用 `imagePath` 走 `Image.file`
+
+**2) `FilterViewModelState` 加 transform 字段**：
+```dart
+final double scale;       // 默认 1.0
+final Offset translation; // 默认 Offset.zero
+```
+- 新增 `setTransform({scale, translation})` 和 `resetTransform()` 方法
+- **重要决策**：`setCropRatio` **不重置 transform** —— 用户拍板"切换比例时保留缩放/平移状态"
+- copyWith 走 `?? this.x` 模式（与现有 smooth/whiten 一致）
+
+**3) `ImageProcessingService.applyTransform` 新公开方法**：
+- 算法：按 scale 算源图可见窗口大小 (`srcW/s, srcH/s`) + 按 translation 平移中心 + clamp 防止越界 + `img.copyCrop` + `img.copyResize` 到 target 尺寸
+- 当 `scale ≤ 1.0 && translation == Offset.zero` 时走 short-circuit：只 resize 不裁
+- Translation ∈ [-1, 1]，scale ∈ [1.0, 4.0]，clamp 兜底
+
+**4) 处理流水线接入**：
+```
+原：processImage → crop
+新：processImage → applyTransform(scale, translation, targetW, targetH)
+```
+- `_runProcess` 和 `saveProcessedImage` 都接入
+- `applyTransform` 内部已经按目标比例 resize（计算 `targetW = targetH * ratio`），所以**不再单独调 crop**
+
+**5) `FilterPanel` 接入**：
+- 顶部 `_PhotoPreview` 类**删除**，替换为 `InteractiveCropEditor`（保留 `ConstrainedBox(maxHeight: 38%)` 防溢出）
+- 三个 tab（滤镜 / 美颜 / 裁切）共享同一个编辑器 —— "所见即所得"
+- 编辑器回调 → `notifier.setTransform(scale, translation)` 走 200ms debounce 重处理
+
+**6) `CropRatioBar` 加「重置」按钮**：
+- 位置：比例 chip 行**左端**
+- 行为：`notifier.resetTransform()` → scale=1.0, translation=Offset.zero
+- 状态：`scale != 1.0 || translation != Offset.zero` 时高亮可点（enabled），否则灰显（disabled）
+- 样式与 `_RatioChip` 一致（pill 圆角 + AnimatedContainer）
+
+**测试**（共 14 个新测试）：
+- `image_processing_service_test.dart` 加 4 个：`applyTransform` 几何正确性（scale=1 透传、scale=2 中心裁、translation 平移、越界 clamp）
+- `filter_view_model_preview_test.dart` 加 3 个：默认 transform 字段、`setTransform` 触发处理、`resetTransform` 回到默认、`setCropRatio` 不重置 transform
+- `interactive_crop_editor_test.dart` 新建 3 个：渲染 InteractiveViewer+Image、非自由比例渲染 CustomPaint、自由比例不报错
+- `crop_ratio_bar_test.dart` 新建 2 个：默认 state 渲染 6 chip + 重置按钮、scale≠1.0 点重置回 1.0
+
+**潜在改进**（本次未做）：
+- 旋转 / 镜像（`img.copyRotate` / 翻转）
+- 多选框
+- 历史撤销栈
+
+### #2 美颜滑条间距 4pt → 12pt
+
+**背景**：〇四节 #8 把间距从 8pt 砍到 4pt 砍过头了，操作时容易误触相邻滑杆
+
+**修法**（`lib/features/filter/widgets/beauty_slider.dart`）：两处 `const SizedBox(height: 4)` → `const SizedBox(height: AppSpacing.gutterGrid)`（= 12pt）
+
+### 验证
+- 76/76 测试通过（+14 个新测试）
+- `flutter analyze`：本次新加的代码 0 issues；18 个预存在 issues 无变化
+- 8 commits: `4698287` `b146e5b` `6e9377f` `79c265d` `bf708c8` `f589758` `a1a9adc` `dd6d846` `b2d47b8`
+
+### 一并修改的 2 项与之前的关系
+- #1 自由裁切：把 〇四节 #6「裁切 Tab」的固定中心裁切升级为交互式
+- #2 滑条间距：把 〇四节 #8 的 4pt 调回 12pt（之前砍过头）
 
 ---
 
