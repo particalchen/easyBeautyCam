@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' show Offset;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -117,6 +118,82 @@ void main() {
       expect(outImage, isNotNull);
       expect(outImage!.width, 300);
       expect(outImage.height, 200);
+    });
+  });
+
+  group('ImageProcessingService.applyTransform - zoom + pan', () {
+    test('scale=1.0, translation=zero, target=原尺寸：输出=原图', () async {
+      final src = img.Image(width: 400, height: 300);
+      img.fill(src, color: img.ColorRgb8(120, 120, 120));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.applyTransform(
+        srcBytes,
+        scale: 1.0,
+        translation: Offset.zero,
+        targetWidth: 400,
+        targetHeight: 300,
+      );
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      expect(outImage!.width, 400);
+      expect(outImage.height, 300);
+    });
+
+    test('scale=2.0：visible area 是原图中心 1/2，resize 到 target', () async {
+      final src = img.Image(width: 400, height: 300);
+      img.fill(src, color: img.ColorRgb8(80, 80, 80));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.applyTransform(
+        srcBytes,
+        scale: 2.0,
+        translation: Offset.zero,
+        targetWidth: 200,
+        targetHeight: 150,
+      );
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      expect(outImage!.width, 200);
+      expect(outImage.height, 150);
+      final centerPixel = outImage.getPixel(100, 75);
+      expect(centerPixel.r, 80);
+    });
+
+    test('translation 平移可见窗口', () async {
+      final src = img.Image(width: 400, height: 300);
+      img.fill(src, color: img.ColorRgb8(50, 50, 50));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.applyTransform(
+        srcBytes,
+        scale: 1.0,
+        translation: const Offset(0.1, 0),
+        targetWidth: 200,
+        targetHeight: 150,
+      );
+      expect(out, isNotEmpty);
+    });
+
+    test('越界 translation 自动 clamp 到图像边界', () async {
+      final src = img.Image(width: 200, height: 200);
+      img.fill(src, color: img.ColorRgb8(100, 100, 100));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.applyTransform(
+        srcBytes,
+        scale: 2.0,
+        translation: const Offset(1.0, 1.0),
+        targetWidth: 100,
+        targetHeight: 100,
+      );
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      expect(outImage!.width, 100);
     });
   });
 }

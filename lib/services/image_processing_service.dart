@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:ui' show Offset;
+
 import 'package:image/image.dart' as img;
 
 enum FilterType { original, coral, gangfeng, rixi, jiaopian }
@@ -264,5 +266,55 @@ class ImageProcessingService {
     final y = (h - newH) ~/ 2;
     final cropped = img.copyCrop(image, x: x, y: y, width: newW, height: newH);
     return Uint8List.fromList(img.encodePng(cropped));
+  }
+
+  /// 按 scale + translation 提取源图可见区域，并 resize 到 target。
+  ///
+  /// 参数：
+  /// - [scale] ∈ [1.0, 4.0]：1.0 = 全图可见，2.0 = 中心 1/2 区域可见
+  /// - [translation] ∈ [-1, 1]：相对图像宽高的偏移比例
+  /// - [targetWidth]/[targetHeight]：输出 resize 尺寸（裁切框尺寸）
+  Future<Uint8List> applyTransform(
+    Uint8List imageBytes, {
+    required double scale,
+    required Offset translation,
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
+    if (scale <= 1.0 && translation == Offset.zero) {
+      final image = img.decodeImage(imageBytes);
+      if (image == null) return imageBytes;
+      if (image.width == targetWidth && image.height == targetHeight) {
+        return imageBytes;
+      }
+      final resized = img.copyResize(image, width: targetWidth, height: targetHeight);
+      return Uint8List.fromList(img.encodePng(resized));
+    }
+
+    final image = img.decodeImage(imageBytes);
+    if (image == null) return imageBytes;
+
+    final srcW = image.width;
+    final srcH = image.height;
+    final s = scale.clamp(1.0, 4.0);
+
+    final visibleW = (srcW / s).round();
+    final visibleH = (srcH / s).round();
+
+    final tx = translation.dx.clamp(-1.0, 1.0);
+    final ty = translation.dy.clamp(-1.0, 1.0);
+    var cx = (srcW / 2.0 - tx * srcW).round();
+    var cy = (srcH / 2.0 - ty * srcH).round();
+
+    final halfW = visibleW ~/ 2;
+    final halfH = visibleH ~/ 2;
+    cx = cx.clamp(halfW, srcW - halfW);
+    cy = cy.clamp(halfH, srcH - halfH);
+
+    final x = cx - halfW;
+    final y = cy - halfH;
+    final cropped = img.copyCrop(image, x: x, y: y, width: visibleW, height: visibleH);
+    final resized = img.copyResize(cropped, width: targetWidth, height: targetHeight);
+    return Uint8List.fromList(img.encodePng(resized));
   }
 }
