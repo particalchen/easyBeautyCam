@@ -35,6 +35,7 @@
 - **美颜滑条间距**：4pt → 12pt（`AppSpacing.gutterGrid`）
 - **拍后编辑顶部预览**：从静态 `Image.memory` 改为 `InteractiveCropEditor`，三个 tab 共享同一编辑器
 - **filter/拍后编辑**：FilterPanel 改为全屏路由 + 编辑期间暂停摄像头；裁切 UI 重构（「原图」替代「自由」+ 默认选中 + 比例矩形图示 + 重置图标按钮最右侧）
+- **filter/拍后编辑 UI 微调**（commit `baa4df6`）：顶部 `SafeArea(top: true)` 避让状态栏；比例 chip 图标去外框 + 缩小（26×18，stroke 1.2）；重置按钮移到「裁切比例」标题行最右侧；`selectedFilter` 默认 `FilterType.original` 而非 `coral`
 
 ### Architecture
 - 处理流水线：`filter → beauty → normalizeBrightness → applyTransform`（applyTransform 内部按目标比例 resize，不再单独调 crop）
