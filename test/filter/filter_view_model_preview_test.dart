@@ -114,5 +114,31 @@ void main() {
       expect(state.scale, 1.0);
       expect(state.translation, Offset.zero);
     });
+
+    test('setTransform 更新 scale/translation 并触发处理', () async {
+      container.read(filterViewModelProvider.notifier).setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final c1 = svc.callCount;
+
+      container.read(filterViewModelProvider.notifier).setTransform(
+            scale: 2.0,
+            translation: const Offset(10, 20),
+          );
+      await Future<void>.delayed(const Duration(milliseconds: 280));
+
+      final state = container.read(filterViewModelProvider);
+      expect(state.scale, 2.0);
+      expect(state.translation, const Offset(10, 20));
+      expect(svc.callCount, greaterThan(c1), reason: 'setTransform 应触发重新处理');
+    });
+
+    test('resetTransform 把 scale/translation 拉回默认', () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setTransform(scale: 3.0, translation: const Offset(50, 50));
+      notifier.resetTransform();
+      final state = container.read(filterViewModelProvider);
+      expect(state.scale, 1.0);
+      expect(state.translation, Offset.zero);
+    });
   });
 }

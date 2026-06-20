@@ -118,6 +118,19 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     _scheduleProcess();
   }
 
+  void setTransform({double? scale, Offset? translation}) {
+    state = state.copyWith(
+      scale: scale ?? state.scale,
+      translation: translation ?? state.translation,
+    );
+    _scheduleProcess();
+  }
+
+  void resetTransform() {
+    state = state.copyWith(scale: 1.0, translation: Offset.zero);
+    _scheduleProcess();
+  }
+
   void setSmooth(double value) {
     state = state.copyWith(smooth: value);
     _scheduleProcess();
