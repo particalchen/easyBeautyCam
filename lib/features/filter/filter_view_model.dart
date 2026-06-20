@@ -24,6 +24,7 @@ final filterViewModelProvider = StateNotifierProvider<FilterViewModel, FilterVie
 class FilterViewModelState {
   final String? imagePath;
   final FilterType selectedFilter;
+  final CropRatio cropRatio;
   final double smooth;
   final double whiten;
   final double slim;
@@ -35,6 +36,7 @@ class FilterViewModelState {
   const FilterViewModelState({
     this.imagePath,
     this.selectedFilter = FilterType.coral,
+    this.cropRatio = CropRatio.free,
     this.smooth = AppConstants.defaultBeautySmooth,
     this.whiten = AppConstants.defaultBeautyWhiten,
     this.slim = AppConstants.defaultBeautySlim,
@@ -47,6 +49,7 @@ class FilterViewModelState {
   FilterViewModelState copyWith({
     String? imagePath,
     FilterType? selectedFilter,
+    CropRatio? cropRatio,
     double? smooth,
     double? whiten,
     double? slim,
@@ -60,6 +63,7 @@ class FilterViewModelState {
     return FilterViewModelState(
       imagePath: imagePath ?? this.imagePath,
       selectedFilter: selectedFilter ?? this.selectedFilter,
+      cropRatio: cropRatio ?? this.cropRatio,
       smooth: smooth ?? this.smooth,
       whiten: whiten ?? this.whiten,
       slim: slim ?? this.slim,
@@ -97,6 +101,11 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
 
   void selectFilter(FilterType filter) {
     state = state.copyWith(selectedFilter: filter);
+    _scheduleProcess();
+  }
+
+  void setCropRatio(CropRatio ratio) {
+    state = state.copyWith(cropRatio: ratio);
     _scheduleProcess();
   }
 
@@ -143,13 +152,18 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     if (!mounted) return;
     state = state.copyWith(isPreviewProcessing: true);
 
-    final processed = await _processingService.processImage(
+    var processed = await _processingService.processImage(
       origBytes,
       filter: state.selectedFilter,
       smooth: state.smooth,
       whiten: state.whiten,
       slim: state.slim,
     );
+
+    // 裁切（如果选了非自由比例）
+    if (state.cropRatio != CropRatio.free) {
+      processed = await _processingService.crop(processed, state.cropRatio);
+    }
 
     if (!mounted) return;
     state = state.copyWith(

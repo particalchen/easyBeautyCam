@@ -3,6 +3,54 @@ import 'package:image/image.dart' as img;
 
 enum FilterType { original, coral, gangfeng, rixi, jiaopian }
 
+/// 照片裁切比例 —— 编辑面板「裁切」tab 候选
+///
+/// - free  = 不裁切（保留原比例）
+/// - 16_9  = 横屏宽幅
+/// - 4_3   = 经典相机比例
+/// - 1_1   = 方形（社交头像常用）
+/// - 3_4   = 人像常用
+/// - 9_16  = 竖屏全屏
+enum CropRatio { free, ratio_16_9, ratio_4_3, ratio_1_1, ratio_3_4, ratio_9_16 }
+
+extension CropRatioX on CropRatio {
+  /// 比例值 (width / height)；free 返回 null 表示不约束
+  double? get ratio {
+    switch (this) {
+      case CropRatio.free:
+        return null;
+      case CropRatio.ratio_16_9:
+        return 16 / 9;
+      case CropRatio.ratio_4_3:
+        return 4 / 3;
+      case CropRatio.ratio_1_1:
+        return 1.0;
+      case CropRatio.ratio_3_4:
+        return 3 / 4;
+      case CropRatio.ratio_9_16:
+        return 9 / 16;
+    }
+  }
+
+  /// UI 显示文本
+  String get label {
+    switch (this) {
+      case CropRatio.free:
+        return '自由';
+      case CropRatio.ratio_16_9:
+        return '16:9';
+      case CropRatio.ratio_4_3:
+        return '4:3';
+      case CropRatio.ratio_1_1:
+        return '1:1';
+      case CropRatio.ratio_3_4:
+        return '3:4';
+      case CropRatio.ratio_9_16:
+        return '9:16';
+    }
+  }
+}
+
 class ImageProcessingService {
   static const Map<FilterType, List<double>> _filterMatrices = {
     FilterType.original: [],
@@ -179,5 +227,42 @@ class ImageProcessingService {
       }
     }
     return Uint8List.fromList(img.encodePng(result));
+  }
+
+  /// 按指定比例中心裁切图像
+  ///
+  /// - ratio == null（CropRatio.free）→ 原样返回
+  /// - 图比目标更宽（imageW/H > targetRatio）→ 裁左右，保留上下
+  /// - 图比目标更窄（imageW/H < targetRatio）→ 裁上下，保留左右
+  /// - 等比 → 不动
+  Future<Uint8List> crop(Uint8List imageBytes, CropRatio ratio) async {
+    final target = ratio.ratio;
+    if (target == null) return imageBytes;
+    final image = img.decodeImage(imageBytes);
+    if (image == null) return imageBytes;
+
+    final w = image.width;
+    final h = image.height;
+    final currentRatio = w / h;
+
+    int newW;
+    int newH;
+    if ((currentRatio - target).abs() < 0.001) {
+      // 等比，不动
+      return imageBytes;
+    } else if (currentRatio > target) {
+      // 图更宽 → 裁左右
+      newH = h;
+      newW = (h * target).round();
+    } else {
+      // 图更窄（更竖）→ 裁上下
+      newW = w;
+      newH = (w / target).round();
+    }
+
+    final x = (w - newW) ~/ 2;
+    final y = (h - newH) ~/ 2;
+    final cropped = img.copyCrop(image, x: x, y: y, width: newW, height: newH);
+    return Uint8List.fromList(img.encodePng(cropped));
   }
 }

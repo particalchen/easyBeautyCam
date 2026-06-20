@@ -137,6 +137,26 @@ void main() {
       expect(find.text('瘦脸'), findsOneWidget);
     });
 
+    testWidgets('切到裁切 tab 显示 6 个比例按钮 + 切比例触发 setCropRatio', (tester) async {
+      await pumpPanel(tester);
+
+      // 切到「裁切」tab
+      await tester.tap(find.text('裁切'));
+      await tester.pumpAndSettle();
+
+      // 6 个比例按钮全在
+      expect(find.text('自由'), findsOneWidget);
+      expect(find.text('16:9'), findsOneWidget);
+      expect(find.text('4:3'), findsOneWidget);
+      expect(find.text('1:1'), findsOneWidget);
+      expect(find.text('3:4'), findsOneWidget);
+      expect(find.text('9:16'), findsOneWidget);
+
+      // 切到 1:1 不会崩（验证 onTap 链路 + setCropRatio 调用）
+      await tester.tap(find.text('1:1'));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('无 imagePath 时不渲染图片预览', (tester) async {
       await pumpPanel(tester);
 

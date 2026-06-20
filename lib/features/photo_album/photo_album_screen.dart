@@ -208,14 +208,30 @@ class _PhotoAlbumScreenState extends ConsumerState<PhotoAlbumScreen> {
               InteractiveViewer(
                 child: Center(child: Image.file(File(path))),
               ),
+              // 关闭按钮：放大 + 固定右上角，加半透明深色圆底保证浅色照片上也能看清
               Positioned(
                 top: 0,
-                left: 0,
                 right: 0,
                 child: SafeArea(
-                  child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.pop(context),
+                        child: const SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

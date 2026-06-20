@@ -61,6 +61,64 @@ void main() {
       );
     });
   });
+
+  group('ImageProcessingService.crop - 中心裁切到指定宽高比', () {
+    test('1:1 裁切 400x200 图，输出应为 200x200', () async {
+      // 横向 2:1 的图，中心裁成 1:1
+      final src = img.Image(width: 400, height: 200);
+      img.fill(src, color: img.ColorRgb8(100, 100, 100));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.crop(srcBytes, CropRatio.ratio_1_1);
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      expect(outImage!.width, 200, reason: '1:1 裁切后宽度');
+      expect(outImage.height, 200, reason: '1:1 裁切后高度');
+    });
+
+    test('16:9 裁切 200x400 竖图，输出应为 200x113（去掉上下）', () async {
+      // 竖向 1:2 的图，中心裁成 16:9 (宽 > 高)
+      final src = img.Image(width: 200, height: 400);
+      img.fill(src, color: img.ColorRgb8(80, 80, 80));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.crop(srcBytes, CropRatio.ratio_16_9);
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      // 16:9 比例 = 1.7778；200 / 1.7778 = 112.5 → round 113
+      expect(outImage!.width, 200, reason: '16:9 裁切后宽度=原宽（因为图比目标更竖）');
+      expect(outImage.height, 113, reason: '16:9 裁切后高度=round(width*9/16)');
+    });
+
+    test('9:16 裁切 400x200 横图，输出应为 113x200（去掉左右）', () async {
+      final src = img.Image(width: 400, height: 200);
+      img.fill(src, color: img.ColorRgb8(60, 60, 60));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.crop(srcBytes, CropRatio.ratio_9_16);
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      // 9:16 比例 = 0.5625；200 * 0.5625 = 112.5 → round 113
+      expect(outImage!.width, 113, reason: '9:16 裁切后宽度=round(height*9/16)');
+      expect(outImage.height, 200, reason: '9:16 裁切后高度=原高');
+    });
+
+    test('自由 (free) 不裁切，输出尺寸与原图一致', () async {
+      final src = img.Image(width: 300, height: 200);
+      img.fill(src, color: img.ColorRgb8(120, 120, 120));
+      final srcBytes = Uint8List.fromList(img.encodePng(src));
+
+      final svc = ImageProcessingService();
+      final out = await svc.crop(srcBytes, CropRatio.free);
+      final outImage = img.decodeImage(out);
+      expect(outImage, isNotNull);
+      expect(outImage!.width, 300);
+      expect(outImage.height, 200);
+    });
+  });
 }
 
 /// Rec.709 亮度 (0..255)

@@ -9,11 +9,13 @@ import 'capture_button.dart';
 /// 底部相机控制栏
 ///
 /// 布局（自上而下）：
-/// 1. 焦段 pill 行（后置 [.5, 1x, 2, 3] / 前置 [1x]）
+/// 1. 焦段 pill 行（后置 [.5x, 1x, 2x, 3x] / 前置 [1x]）—— 过滤到硬件支持范围
 /// 2. 控制栏（占位 | 快门 | 相机切换）
 class CameraControls extends StatelessWidget {
   final int cameraIndex;
   final double currentZoom;
+  final double minZoom;
+  final double maxZoom;
   final ValueChanged<int> onCameraSwitch;
   final ValueChanged<double> onZoomSelect;
   final VoidCallback onCapture;
@@ -22,31 +24,38 @@ class CameraControls extends StatelessWidget {
     super.key,
     required this.cameraIndex,
     required this.currentZoom,
+    required this.minZoom,
+    required this.maxZoom,
     required this.onCameraSwitch,
     required this.onZoomSelect,
     required this.onCapture,
   });
 
-  /// 写死的焦段档位（B 方案）
+  /// 焦段档位池（候选）
   /// 后置：[0.5, 1.0, 2.0, 3.0]
   /// 前置：[1.0]
-  /// A 方案（动态检测硬件）放入设计文档的"未来工作"。
+  /// 实际 UI 只显示硬件 [minZoom, maxZoom] 范围内的值
   static const _backZooms = <double>[0.5, 1.0, 2.0, 3.0];
   static const _frontZooms = <double>[1.0];
 
   bool get _isFront => cameraIndex == 1;
 
-  /// 0.5 → ".5", 1.0 → "1x", 2.0 → "2", 3.0 → "3"
+  /// 统一显示为 "Nx" 格式：0.5 → "0.5x"、1 → "1x"、2 → "2x"、3 → "3x"
   String _zoomLabel(double z) {
-    if (z == 1.0) return '1x';
-    if (z == 0.5) return '.5';
-    if (z == z.truncateToDouble()) return z.toInt().toString();
-    return z.toString();
+    if (z == z.truncateToDouble()) {
+      return '${z.toInt()}x';
+    }
+    // 0.5 这种非整数也带 "x"
+    return '${z.toString()}x';
   }
 
   @override
   Widget build(BuildContext context) {
-    final zooms = _isFront ? _frontZooms : _backZooms;
+    final allZooms = _isFront ? _frontZooms : _backZooms;
+    // 过滤掉硬件不支持的焦段
+    final zooms = allZooms
+        .where((z) => z >= minZoom - 0.01 && z <= maxZoom + 0.01)
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
@@ -58,7 +67,7 @@ class CameraControls extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (int i = 0; i < zooms.length; i++) ...[
-                _buildZoomPill(zooms[i], zooms[i] == currentZoom),
+                _buildZoomPill(zooms[i], _isPillSelected(zooms[i])),
                 if (i < zooms.length - 1) const SizedBox(width: AppSpacing.sm),
               ],
             ],
@@ -79,6 +88,13 @@ class CameraControls extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// pill 选中判定：硬件 clamp 后相等就算选中
+  /// 这样如果 currentZoom 是用户拉 pinch 得到的非整数，pill 仍能正确高亮
+  bool _isPillSelected(double pillZoom) {
+    final clamped = pillZoom.clamp(minZoom, maxZoom);
+    return (currentZoom - clamped).abs() < 0.01;
   }
 
   Widget _buildZoomPill(double zoom, bool isSelected) {

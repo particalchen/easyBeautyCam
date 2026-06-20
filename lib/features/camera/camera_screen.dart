@@ -145,26 +145,44 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   }
 
   Widget _buildCameraView(CameraViewModelState state, CameraViewModel notifier) {
-    final controller = ref.watch(cameraServiceProvider).controller;
+    final cameraService = ref.watch(cameraServiceProvider);
+    final controller = cameraService.controller;
     if (controller == null || !controller.value.isInitialized) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
+    final minZoom = cameraService.minZoomLevel;
+    final maxZoom = cameraService.maxZoomLevel;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1) 双指缩放手势层（姿势轮廓不跟随缩放）
+        // 1) 双指缩放 + 点击对焦曝光（姿势轮廓不跟随缩放）
         GestureDetector(
           onScaleStart: (details) {
             // 记录缩放起始基线，避免连续 pinch 累计漂移
             _gestureBaseZoom = state.currentZoom;
           },
           onScaleUpdate: (details) {
-            final zoom = (_gestureBaseZoom * details.scale).clamp(0.5, 5.0);
+            final zoom = (_gestureBaseZoom * details.scale).clamp(minZoom, maxZoom);
             notifier.setZoom(zoom);
+          },
+          onTapUp: (details) {
+            // 把屏幕坐标按预览区域比例转换为 [0,1] 的对焦/曝光点
+            final box = context.findRenderObject() as RenderBox?;
+            if (box == null) return;
+            final local = box.globalToLocal(details.globalPosition);
+            final size = box.size;
+            final point = Offset(
+              (local.dx / size.width).clamp(0.0, 1.0),
+              (local.dy / size.height).clamp(0.0, 1.0),
+            );
+            _showFocusIndicator(point, size);
+            notifier.focusAndExposeAt(point);
           },
           child: Center(child: CameraPreview(controller)),
         ),
+        // 1.5) 对焦指示器
+        if (_focusPoint != null) _buildFocusIndicator(),
         // 2) 姿势轮廓叠加（不跟随缩放）
         const PoseOverlay(),
         // 3) 底部姿势缩略图条（前置相机隐藏；避让控制栏 + home indicator）
@@ -192,6 +210,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               child: CameraControls(
                 cameraIndex: state.cameraIndex,
                 currentZoom: state.currentZoom,
+                minZoom: minZoom,
+                maxZoom: maxZoom,
                 onCameraSwitch: (index) => notifier.switchCamera(index),
                 onZoomSelect: (zoom) => notifier.setZoom(zoom),
                 onCapture: () => _capture(notifier),
@@ -211,6 +231,41 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// 当前对焦指示器的相对坐标（[0,1]）和所在 widget 尺寸
+  Offset? _focusPoint;
+  Size? _focusSize;
+  Timer? _focusTimer;
+
+  void _showFocusIndicator(Offset normalizedPoint, Size widgetSize) {
+    setState(() {
+      _focusPoint = normalizedPoint;
+      _focusSize = widgetSize;
+    });
+    _focusTimer?.cancel();
+    _focusTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
+  }
+
+  Widget _buildFocusIndicator() {
+    final p = _focusPoint!;
+    final size = _focusSize ?? MediaQuery.of(context).size;
+    return Positioned(
+      left: p.dx * size.width - 40,
+      top: p.dy * size.height - 40,
+      child: IgnorePointer(
+        child: Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.primary, width: 1.5),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
     );
   }
 

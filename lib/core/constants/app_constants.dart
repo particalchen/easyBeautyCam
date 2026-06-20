@@ -12,7 +12,8 @@ class AppConstants {
   ];
 
   static const List<double> beautyRange = [0.0, 100.0];
-  static const double defaultBeautySmooth = 30.0;
-  static const double defaultBeautyWhiten = 20.0;
+  // 美颜默认值改为 0（用户偏好：拍出来原图，需要时再手动调）
+  static const double defaultBeautySmooth = 0.0;
+  static const double defaultBeautyWhiten = 0.0;
   static const double defaultBeautySlim = 0.0;
 }

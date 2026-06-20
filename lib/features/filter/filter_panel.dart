@@ -10,6 +10,7 @@ import '../../core/theme/app_typography.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'filter_view_model.dart';
 import 'widgets/beauty_slider.dart';
+import 'widgets/crop_ratio_bar.dart';
 import 'widgets/filter_carousel.dart';
 
 /// 拍后编辑页：图片预览 + 滤镜/美颜 tab
@@ -36,7 +37,7 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -121,20 +122,23 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
               tabs: const [
                 Tab(text: '滤镜'),
                 Tab(text: '美颜'),
+                Tab(text: '裁切'),
               ],
             ),
-            // ── TabView ──
+            // ── TabView（高度 150，让出更多空间给照片预览）──
             SizedBox(
-              height: 200,
+              height: 150,
               child: TabBarView(
                 controller: _tabController,
                 children: const [
                   FilterCarousel(),
                   Padding(
-                    padding: EdgeInsets.symmetric(
-                      vertical: AppSpacing.gutterGrid,
-                    ),
+                    padding: EdgeInsets.symmetric(vertical: 4),
                     child: BeautySlider(),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: CropRatioBar(),
                   ),
                 ],
               ),
@@ -162,9 +166,9 @@ class _PhotoPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 屏幕高 - 顶部栏 ~50 - TabBar 38 - TabView 200 - bottom padding 16
-    // ≈ 屏幕高 45%，给竖向照片留出 contain 缩放空间
-    final maxPreviewHeight = MediaQuery.of(context).size.height * 0.45;
+    // 屏幕高 - 顶部栏 ~50 - TabBar 38 - TabView 150 - bottom padding 16
+    // ≈ 屏幕高 38%，给照片预览让出空间的同时仍能完整 contain 竖向照片
+    final maxPreviewHeight = MediaQuery.of(context).size.height * 0.38;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMain),
       child: ConstrainedBox(

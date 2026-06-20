@@ -13,7 +13,19 @@
 - **滤镜选择**：选中边框只圈住 50×50 颜色按钮，不再撑满整个 carousel 高度
 - **相机偏暗**：相机端在 `initialize` / `switchCamera` 后调 `setExposureOffset(+1.0)`，用 try/catch 兜底（部分 Android/模拟器可能不支持）
 - **拍后编辑**：`image_processing_service.processImage` 末尾加 `normalizeBrightness` 兜底，Rec.709 mean luma < 75 时按 `(110 - mean) * 0.85` 提升 RGB，亮图原样不动
-- 55 个 widget/unit 测试（含 2 个新增亮度回归测试）
+- **相机偏亮**：回退上一项的 `setExposureOffset(+1.0)`，曝光走相机默认；亮度补偿保留兜底
+- **相机 0.5x 焦段无效**：相机端查 `getMinZoomLevel` / `getMaxZoomLevel`，UI 层 `CameraControls` 自动过滤到硬件支持范围，pinch 范围同步
+- **相册全屏预览**：关闭按钮从默认 IconButton 升级为 48pt 圆形 + 半透明深色底，固定右上角
+- **美颜滑动条**：字号 14→12，track 4→2pt，thumb 半径 14→8，间距 sm→4pt；编辑面板 TabView 高度 200→150、预览区 maxHeight 比例 0.45→0.38
+
+### Changed
+- **焦段按钮文字**：统一为 "Nx" 格式（`0.5x` / `1x` / `2x` / `3x`），去掉原来的 `.5` / `2` / `3` 不一致写法
+- **默认美颜参数**：`defaultBeautySmooth` / `defaultBeautyWhiten` 从 30/20 改为 0/0（用户偏好：拍原图，需要时再手动调）
+
+### Added
+- **相机点击对焦曝光**：在 CameraPreview 上点击，调用 `setFocusPoint` + `setExposurePoint`，并显示 0.9s 黄色对焦指示框
+- **照片编辑裁切**：FilterPanel 增加「裁切」Tab（第三个），提供 自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16 六个比例按钮；`image_processing_service.crop` 用 `img.copyCrop` 做中心裁切；`FilterViewModel.cropRatio` 字段 + `setCropRatio` 方法，选中后 debounce 触发实时裁切预览
+- 62 个 widget/unit 测试（含 2 个亮度 + 4 个裁切 + 2 个硬件 zoom 过滤回归）
 
 ### Known
 - 暂无

@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset;
+
 import 'package:camera/camera.dart';
 
 class CameraService {
@@ -13,16 +15,44 @@ class CameraService {
       enableAudio: false,
     );
     await _controller!.initialize();
-    // 补偿 iOS 上预览/拍照曝光不一致（真机报过「环境光够但照片偏暗」）
-    // +1.0 是经验值；setExposureOffset 在不支持的设备上会抛，需 try 兜底
-    await _applyExposureOffset(1.0);
+    // 曝光走相机默认参数（+1.0 在某些机型上偏亮，已回退）
+    await _queryZoomRange();
   }
 
   CameraController? get controller => _controller;
 
+  /// 硬件支持的最小/最大变焦倍数；空表示未查询
+  double? _minZoom;
+  double? _maxZoom;
+
+  /// UI 用：当前硬件支持的最小变焦
+  double get minZoomLevel => _minZoom ?? 1.0;
+  /// UI 用：当前硬件支持的最大变焦
+  double get maxZoomLevel => _maxZoom ?? 5.0;
+
+  Future<void> _queryZoomRange() async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      _minZoom = await c.getMinZoomLevel();
+      _maxZoom = await c.getMaxZoomLevel();
+    } catch (_) {
+      // 老版本 camera 包可能没这两个 API；保留默认 1.0 / 5.0
+      _minZoom ??= 1.0;
+      _maxZoom ??= 5.0;
+    }
+  }
+
+  /// 把用户传入的 zoom 限制到硬件支持的范围
+  double _clampToHardware(double zoom) {
+    final lo = _minZoom ?? 1.0;
+    final hi = _maxZoom ?? 5.0;
+    return zoom.clamp(lo, hi);
+  }
+
   Future<void> setZoom(double zoom) async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    await _controller!.setZoomLevel(zoom);
+    await _controller!.setZoomLevel(_clampToHardware(zoom));
   }
 
   Future<void> switchCamera(int index) async {
@@ -34,23 +64,25 @@ class CameraService {
       enableAudio: false,
     );
     await _controller!.initialize();
-    await _applyExposureOffset(1.0);
-  }
-
-  /// 软应用曝光补偿；老设备/模拟器可能抛 CameraException，静默吞掉
-  Future<void> _applyExposureOffset(double offset) async {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
-    try {
-      await c.setExposureOffset(offset);
-    } catch (_) {
-      // 不支持曝光补偿的设备（模拟器/部分 Android）直接跳过
-    }
+    await _queryZoomRange();
   }
 
   Future<XFile?> takePicture() async {
     if (_controller == null || !_controller!.value.isInitialized) return null;
     return await _controller!.takePicture();
+  }
+
+  /// 在归一化坐标 ([0,1]) 处设置对焦点 + 曝光点
+  /// point = (x, y) ∈ [0,1]²，预览区域的相对位置
+  Future<void> focusAndExposeAt(Offset point) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      await c.setFocusPoint(point);
+      await c.setExposurePoint(point);
+    } catch (_) {
+      // 模拟器/不支持点对焦的设备静默跳过
+    }
   }
 
   void dispose() {

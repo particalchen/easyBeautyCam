@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/camera_service.dart';
 
@@ -54,6 +56,11 @@ class CameraViewModel extends StateNotifier<CameraViewModelState> {
   Future<String?> takePicture() async {
     final file = await _cameraService.takePicture();
     return file?.path;
+  }
+
+  /// 在归一化坐标 ([0,1]) 处设置对焦点 + 曝光点
+  Future<void> focusAndExposeAt(Offset normalizedPoint) async {
+    await _cameraService.focusAndExposeAt(normalizedPoint);
   }
 
   @override

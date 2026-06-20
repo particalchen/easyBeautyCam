@@ -14,22 +14,24 @@ void main() {
     );
   }
 
-  group('CameraControls - 后置相机', () {
-    testWidgets('渲染 4 颗焦段 pill: .5 / 1x / 2 / 3', (tester) async {
+  group('CameraControls - 后置相机（硬件支持 0.5~5.0）', () {
+    testWidgets('渲染 4 颗焦段 pill: 0.5x / 1x / 2x / 3x（统一 Nx 格式）', (tester) async {
       await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
         ),
       ));
 
-      expect(find.text('.5'), findsOneWidget);
+      expect(find.text('0.5x'), findsOneWidget);
       expect(find.text('1x'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      expect(find.text('2x'), findsOneWidget);
+      expect(find.text('3x'), findsOneWidget);
     });
 
     testWidgets('点击 2x 触发 onZoomSelect(2.0)，不触发 onCameraSwitch', (tester) async {
@@ -40,30 +42,34 @@ void main() {
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
         ),
       ));
 
-      await tester.tap(find.text('2'));
+      await tester.tap(find.text('2x'));
       expect(zoomedTo, 2.0);
       expect(switchedTo, isNull, reason: '2x 不应该触发 onCameraSwitch');
     });
 
-    testWidgets('点击 .5 触发 onZoomSelect(0.5)', (tester) async {
+    testWidgets('点击 0.5x 触发 onZoomSelect(0.5)', (tester) async {
       double? zoomedTo;
       await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
         ),
       ));
 
-      await tester.tap(find.text('.5'));
+      await tester.tap(find.text('0.5x'));
       expect(zoomedTo, 0.5);
     });
 
@@ -73,6 +79,8 @@ void main() {
         CameraControls(
           cameraIndex: 0,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -88,15 +96,16 @@ void main() {
         CameraControls(
           cameraIndex: 0,
           currentZoom: 2.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
         ),
       ));
 
-      // 找到文字 "2" 对应的 AnimatedContainer，验证它的 decoration.color == AppColors.primary
       final containerFinder = find.ancestor(
-        of: find.text('2'),
+        of: find.text('2x'),
         matching: find.byType(AnimatedContainer),
       );
       expect(containerFinder, findsOneWidget);
@@ -106,12 +115,55 @@ void main() {
     });
   });
 
+  group('CameraControls - 硬件范围过滤（真实设备 min=1.0）', () {
+    testWidgets('minZoom=1.0 时 0.5x pill 被过滤掉', (tester) async {
+      // 模拟大部分 iOS 设备：硬件 min=1.0，不支持 0.5x
+      await tester.pumpWidget(wrap(
+        CameraControls(
+          cameraIndex: 0,
+          currentZoom: 1.0,
+          minZoom: 1.0,
+          maxZoom: 5.0,
+          onCameraSwitch: (_) {},
+          onZoomSelect: (_) {},
+          onCapture: () {},
+        ),
+      ));
+
+      expect(find.text('0.5x'), findsNothing, reason: '0.5x 不在硬件 [1.0,5.0] 内');
+      expect(find.text('1x'), findsOneWidget);
+      expect(find.text('2x'), findsOneWidget);
+      expect(find.text('3x'), findsOneWidget);
+    });
+
+    testWidgets('maxZoom=2.0 时 3x pill 被过滤掉', (tester) async {
+      await tester.pumpWidget(wrap(
+        CameraControls(
+          cameraIndex: 0,
+          currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 2.0,
+          onCameraSwitch: (_) {},
+          onZoomSelect: (_) {},
+          onCapture: () {},
+        ),
+      ));
+
+      expect(find.text('0.5x'), findsOneWidget);
+      expect(find.text('1x'), findsOneWidget);
+      expect(find.text('2x'), findsOneWidget);
+      expect(find.text('3x'), findsNothing, reason: '3x 不在硬件 [0.5,2.0] 内');
+    });
+  });
+
   group('CameraControls - 前置相机', () {
     testWidgets('焦段行只剩 1 颗 1x pill', (tester) async {
       await tester.pumpWidget(wrap(
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -119,9 +171,9 @@ void main() {
       ));
 
       expect(find.text('1x'), findsOneWidget);
-      expect(find.text('.5'), findsNothing);
-      expect(find.text('2'), findsNothing);
-      expect(find.text('3'), findsNothing);
+      expect(find.text('0.5x'), findsNothing);
+      expect(find.text('2x'), findsNothing);
+      expect(find.text('3x'), findsNothing);
     });
 
     testWidgets('点击 1x 触发 onZoomSelect(1.0)', (tester) async {
@@ -130,6 +182,8 @@ void main() {
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (z) => zoomedTo = z,
           onCapture: () {},
@@ -146,6 +200,8 @@ void main() {
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (i) => switchedTo = i,
           onZoomSelect: (_) {},
           onCapture: () {},
@@ -161,6 +217,8 @@ void main() {
         CameraControls(
           cameraIndex: 1,
           currentZoom: 1.0,
+          minZoom: 0.5,
+          maxZoom: 5.0,
           onCameraSwitch: (_) {},
           onZoomSelect: (_) {},
           onCapture: () {},
