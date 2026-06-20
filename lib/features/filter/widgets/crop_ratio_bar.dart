@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +10,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../services/image_processing_service.dart';
 import '../filter_view_model.dart';
 
-/// 裁切比例选择条 —— 6 个比例按钮（自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16）
-///
-/// 选中后立刻触发裁切（debounce 200ms），预览区实时反映
+/// 裁切比例选择条 —— 6 个比例按钮（自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16）+ 重置按钮
 class CropRatioBar extends ConsumerWidget {
   const CropRatioBar({super.key});
 
@@ -27,6 +27,7 @@ class CropRatioBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(filterViewModelProvider);
     final notifier = ref.read(filterViewModelProvider.notifier);
+    final canReset = state.scale != 1.0 || state.translation != Offset.zero;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -50,6 +51,11 @@ class CropRatioBar extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _ResetChip(
+                  enabled: canReset,
+                  onTap: () => notifier.resetTransform(),
+                ),
+                const SizedBox(width: AppSpacing.sm),
                 for (final ratio in _ratios) ...[
                   _RatioChip(
                     label: ratio.label,
@@ -63,6 +69,44 @@ class CropRatioBar extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ResetChip extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _ResetChip({required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: enabled
+              ? AppColors.surfaceContainerHigh
+              : AppColors.surfaceContainer,
+          borderRadius: BorderRadius.circular(AppRadii.full),
+          border: Border.all(
+            color: enabled ? AppColors.outline : AppColors.outlineVariant,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          '重置',
+          style: AppTypography.numericLabel.copyWith(
+            color: enabled
+                ? AppColors.onSurface
+                : AppColors.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }
