@@ -7,6 +7,8 @@
 
 ## 〇、最新进度（2026-06-20）
 
+**最新**：〇六 拍后编辑全屏 + 裁切 UI 重构（详见 [〇六](#〇六-拍后编辑全屏--裁切-ui-重构-2026-06-20)）
+
 ### 裁切编辑器 iOS 风格 bugfix ✅ 完成（5 commits：`87bbf33` `56439be` `87c63be` `8763beb` `eaa46c7`）
 
 详见 [〇五-2](#〇五-2-bugfix-2026-06-20)。
@@ -711,3 +713,16 @@ assets/poses/       # 远程下载的姿势
 - 实现计划：`docs/superpowers/plans/2026-06-04-easyBeautyCam-plan.md`
 - A 任务设计稿：`docs/superpowers/specs/2026-06-17-camera-main-ui-redesign-design.md`
 - A 任务实现计划：`docs/superpowers/plans/2026-06-17-camera-main-ui-redesign.md`
+
+---
+
+<a id="filter-fullscreen-2026-06-20"></a>
+### 〇六 拍后编辑全屏 + 裁切 UI 重构 (2026-06-20)
+
+FilterPanel 从 BottomSheet 改为全屏路由 + 编辑期间暂停摄像头 + 裁切 UI 重构：
+
+1. **全屏覆盖**：`Navigator.push(MaterialPageRoute(fullscreenDialog: true))` 替代 `showModalBottomSheet`；编辑区空间翻倍
+2. **摄像头暂停**：`CameraService.pausePreview/resumePreview`；编辑期间停止后台采集节省电
+3. **「原图」替代「自由」**：`CropRatio.free → CropRatio.original`，label '原图'；默认选中
+4. **比例图示**：每个 chip 上方加矩形图示（按宽高比显示，CustomPainter）
+5. **重置按钮**：圆形 IconButton（Icons.refresh），放在比例行最右侧，位置和样式双重区分
