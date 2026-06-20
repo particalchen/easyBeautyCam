@@ -85,6 +85,26 @@ class CameraService {
     }
   }
 
+  /// 暂停相机预览（CameraController 实例保留，停止后台采集）
+  Future<void> pausePreview() async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      await c.pausePreview();
+    } catch (_) {
+      // 老版本 camera 包可能没这 API，静默跳过
+    }
+  }
+
+  /// 恢复相机预览
+  Future<void> resumePreview() async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      await c.resumePreview();
+    } catch (_) {}
+  }
+
   void dispose() {
     _controller?.dispose();
   }
