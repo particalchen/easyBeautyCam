@@ -188,15 +188,11 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     if (ratio != CropRatio.free && processed.isNotEmpty) {
       final procImg = _safeDecodeImage(processed);
       if (procImg != null) {
-        final targetRatio = ratio.ratio!;
-        final targetH = procImg.height;
-        final targetW = (targetH * targetRatio).round();
         processed = await _processingService.applyTransform(
           processed,
           scale: state.scale,
           translation: state.translation,
-          targetWidth: targetW,
-          targetHeight: targetH,
+          targetRatio: ratio.ratio,
         );
       }
     }
@@ -228,15 +224,11 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     if (ratio != CropRatio.free && bytes != null) {
       final procImg = _safeDecodeImage(bytes);
       if (procImg != null) {
-        final targetRatio = ratio.ratio!;
-        final targetH = procImg.height;
-        final targetW = (targetH * targetRatio).round();
         bytes = await _processingService.applyTransform(
           bytes,
           scale: state.scale,
           translation: state.translation,
-          targetWidth: targetW,
-          targetHeight: targetH,
+          targetRatio: ratio.ratio,
         );
       }
     }

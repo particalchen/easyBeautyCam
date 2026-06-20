@@ -268,44 +268,38 @@ class ImageProcessingService {
     return Uint8List.fromList(img.encodePng(cropped));
   }
 
-  /// 按 scale + translation 提取源图可见区域，并 resize 到 target。
+  /// 按 scale + translation 提取源图可见区域，按目标比例二次裁切。
   ///
   /// 参数：
-  /// - [scale] ∈ [1.0, 4.0]：1.0 = 全图可见，2.0 = 中心 1/2 区域可见
-  /// - [translation] ∈ [-1, 1]：相对图像宽高的偏移比例
-  /// - [targetWidth]/[targetHeight]：输出 resize 尺寸（裁切框尺寸）
+  /// - [scale] ∈ [0.5, 4.0]：1.0 = 全图可见；>1 放大（只显示中心区域）；<1 拉远（保留更多）
+  /// - [translation] ∈ [-1, 1]：相对图像中心的归一化偏移
+  /// - [targetRatio] == null（CropRatio.free）→ 输出按 scale/translation 决定的可见矩形，保持原图宽高比
+  /// - [targetRatio] != null → 在可见矩形上按目标宽高比二次裁切，保持原图宽高比（**不拉伸**）
   Future<Uint8List> applyTransform(
     Uint8List imageBytes, {
     required double scale,
     required Offset translation,
-    required int targetWidth,
-    required int targetHeight,
+    required double? targetRatio,
   }) async {
-    if (scale <= 1.0 && translation == Offset.zero) {
-      final image = img.decodeImage(imageBytes);
-      if (image == null) return imageBytes;
-      if (image.width == targetWidth && image.height == targetHeight) {
-        return imageBytes;
-      }
-      final resized = img.copyResize(image, width: targetWidth, height: targetHeight);
-      return Uint8List.fromList(img.encodePng(resized));
-    }
-
     final image = img.decodeImage(imageBytes);
     if (image == null) return imageBytes;
 
     final srcW = image.width;
     final srcH = image.height;
-    final s = scale.clamp(1.0, 4.0);
+    final s = scale.clamp(0.5, 4.0);
 
-    final visibleW = (srcW / s).round();
-    final visibleH = (srcH / s).round();
+    // 1) 计算"可见区域"在源图中的矩形（按原图宽高比）。
+    // scale<1 时 visible 可能 > src（拉远看全图），clamp 到 src 范围。
+    var visibleW = (srcW / s).round().clamp(1, srcW);
+    var visibleH = (srcH / s).round().clamp(1, srcH);
 
+    // 2) translation 偏移中心
     final tx = translation.dx.clamp(-1.0, 1.0);
     final ty = translation.dy.clamp(-1.0, 1.0);
     var cx = (srcW / 2.0 - tx * srcW).round();
     var cy = (srcH / 2.0 - ty * srcH).round();
 
+    // 3) clamp 到源图边界
     final halfW = visibleW ~/ 2;
     final halfH = visibleH ~/ 2;
     cx = cx.clamp(halfW, srcW - halfW);
@@ -313,8 +307,35 @@ class ImageProcessingService {
 
     final x = cx - halfW;
     final y = cy - halfH;
-    final cropped = img.copyCrop(image, x: x, y: y, width: visibleW, height: visibleH);
-    final resized = img.copyResize(cropped, width: targetWidth, height: targetHeight);
-    return Uint8List.fromList(img.encodePng(resized));
+    final visible = img.copyCrop(image, x: x, y: y, width: visibleW, height: visibleH);
+
+    // 4) 没有目标比例 → 直接返回可见区域
+    if (targetRatio == null) {
+      return Uint8List.fromList(img.encodePng(visible));
+    }
+
+    // 5) 在可见区域上按目标比例二次裁切（保持原图宽高比，**不拉伸**）
+    final vW = visible.width;
+    final vH = visible.height;
+    final currentRatio = vW / vH;
+
+    int finalW;
+    int finalH;
+    if ((currentRatio - targetRatio).abs() < 0.001) {
+      return Uint8List.fromList(img.encodePng(visible));
+    } else if (currentRatio > targetRatio) {
+      // visible 比目标宽 → 裁左右
+      finalH = vH;
+      finalW = (vH * targetRatio).round();
+    } else {
+      // visible 比目标窄（更竖）→ 裁上下
+      finalW = vW;
+      finalH = (vW / targetRatio).round();
+    }
+
+    final fx = (vW - finalW) ~/ 2;
+    final fy = (vH - finalH) ~/ 2;
+    final cropped = img.copyCrop(visible, x: fx, y: fy, width: finalW, height: finalH);
+    return Uint8List.fromList(img.encodePng(cropped));
   }
 }

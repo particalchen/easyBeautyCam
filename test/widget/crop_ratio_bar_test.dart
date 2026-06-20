@@ -34,8 +34,7 @@ class _NoopService extends ImageProcessingService {
     Uint8List imageBytes, {
     required double scale,
     required Offset translation,
-    required int targetWidth,
-    required int targetHeight,
+    required double? targetRatio,
   }) async => imageBytes;
 }
 

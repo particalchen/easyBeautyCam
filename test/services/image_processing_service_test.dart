@@ -132,8 +132,7 @@ void main() {
         srcBytes,
         scale: 1.0,
         translation: Offset.zero,
-        targetWidth: 400,
-        targetHeight: 300,
+        targetRatio: 4 / 3,
       );
       final outImage = img.decodeImage(out);
       expect(outImage, isNotNull);
@@ -141,7 +140,7 @@ void main() {
       expect(outImage.height, 300);
     });
 
-    test('scale=2.0：visible area 是原图中心 1/2，resize 到 target', () async {
+    test('scale=2.0：visible area 是原图中心 1/2', () async {
       final src = img.Image(width: 400, height: 300);
       img.fill(src, color: img.ColorRgb8(80, 80, 80));
       final srcBytes = Uint8List.fromList(img.encodePng(src));
@@ -151,8 +150,7 @@ void main() {
         srcBytes,
         scale: 2.0,
         translation: Offset.zero,
-        targetWidth: 200,
-        targetHeight: 150,
+        targetRatio: 4 / 3,
       );
       final outImage = img.decodeImage(out);
       expect(outImage, isNotNull);
@@ -172,8 +170,7 @@ void main() {
         srcBytes,
         scale: 1.0,
         translation: const Offset(0.1, 0),
-        targetWidth: 200,
-        targetHeight: 150,
+        targetRatio: 4 / 3,
       );
       expect(out, isNotEmpty);
     });
@@ -188,12 +185,104 @@ void main() {
         srcBytes,
         scale: 2.0,
         translation: const Offset(1.0, 1.0),
-        targetWidth: 100,
-        targetHeight: 100,
+        targetRatio: 1.0,
       );
       final outImage = img.decodeImage(out);
       expect(outImage, isNotNull);
       expect(outImage!.width, 100);
+    });
+  });
+
+  group('ImageProcessingService.applyTransform - 按比例裁切（不拉伸）', () {
+    test('applyTransform 1:1 比例从 4:3 原图裁出 3000x3000 不拉伸', () async {
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(255, 0, 0));
+      final bytes = Uint8List.fromList(img.encodePng(src));
+
+      final service = ImageProcessingService();
+      final out = await service.applyTransform(
+        bytes,
+        scale: 1.0,
+        translation: Offset.zero,
+        targetRatio: 1.0,
+      );
+
+      final decoded = img.decodeImage(out)!;
+      expect(decoded.width, 3000);
+      expect(decoded.height, 3000);
+    });
+
+    test('applyTransform 16:9 比例从 4:3 原图裁出 4000x2249 不拉伸', () async {
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(0, 255, 0));
+      final bytes = Uint8List.fromList(img.encodePng(src));
+
+      final service = ImageProcessingService();
+      final out = await service.applyTransform(
+        bytes,
+        scale: 1.0,
+        translation: Offset.zero,
+        targetRatio: 16 / 9,
+      );
+
+      final decoded = img.decodeImage(out)!;
+      // 16:9 ≈ 1.778，src ratio=4/3≈1.333（更窄），按目标更宽 → 裁上下：保留全宽，newH = 4000 / (16/9) = 2250
+      expect(decoded.width, 4000);
+      expect(decoded.height, 2250);
+    });
+
+    test('applyTransform 原比例 4:3 + 目标比例 4:3 输出原尺寸', () async {
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(0, 0, 255));
+      final bytes = Uint8List.fromList(img.encodePng(src));
+
+      final service = ImageProcessingService();
+      final out = await service.applyTransform(
+        bytes,
+        scale: 1.0,
+        translation: Offset.zero,
+        targetRatio: 4 / 3,
+      );
+
+      final decoded = img.decodeImage(out)!;
+      expect(decoded.width, 4000);
+      expect(decoded.height, 3000);
+    });
+
+    test('applyTransform 自由比例 (targetRatio=null) 输出按 scale 决定的可见区域', () async {
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(255, 255, 0));
+      final bytes = Uint8List.fromList(img.encodePng(src));
+
+      final service = ImageProcessingService();
+      final out = await service.applyTransform(
+        bytes,
+        scale: 2.0,
+        translation: Offset.zero,
+        targetRatio: null,
+      );
+
+      final decoded = img.decodeImage(out)!;
+      expect(decoded.width, 2000);
+      expect(decoded.height, 1500);
+    });
+
+    test('applyTransform scale=0.7 拉远时不报错', () async {
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(0, 255, 255));
+      final bytes = Uint8List.fromList(img.encodePng(src));
+
+      final service = ImageProcessingService();
+      final out = await service.applyTransform(
+        bytes,
+        scale: 0.7,
+        translation: Offset.zero,
+        targetRatio: 1.0,
+      );
+
+      final decoded = img.decodeImage(out)!;
+      expect(decoded.width, 3000);
+      expect(decoded.height, 3000);
     });
   });
 }

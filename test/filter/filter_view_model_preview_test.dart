@@ -17,8 +17,7 @@ class _CapturingProcessingService extends ImageProcessingService {
   int applyTransformCallCount = 0;
   double? lastScale;
   Offset? lastTranslation;
-  int? lastTargetWidth;
-  int? lastTargetHeight;
+  double? lastTargetRatio;
   // 用真实可解码的 1x1 PNG（每次 append 计数器字节来区分调用），
   // 让 view model 里的 `img.decodeImage(processed)` 走通。
   final Uint8List _basePng = Uint8List.fromList(img.encodePng(
@@ -47,14 +46,12 @@ class _CapturingProcessingService extends ImageProcessingService {
     Uint8List imageBytes, {
     required double scale,
     required Offset translation,
-    required int targetWidth,
-    required int targetHeight,
+    required double? targetRatio,
   }) async {
     applyTransformCallCount++;
     lastScale = scale;
     lastTranslation = translation;
-    lastTargetWidth = targetWidth;
-    lastTargetHeight = targetHeight;
+    lastTargetRatio = targetRatio;
     return imageBytes;
   }
 }
