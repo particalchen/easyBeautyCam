@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +107,12 @@ void main() {
 
       // 不再调一次 process
       expect(svc.callCount, c1);
+    });
+
+    test('默认 scale=1.0, translation=Offset.zero', () {
+      final state = container.read(filterViewModelProvider);
+      expect(state.scale, 1.0);
+      expect(state.translation, Offset.zero);
     });
   });
 }

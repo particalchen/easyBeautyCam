@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,6 +33,8 @@ class FilterViewModelState {
   final bool isPreviewProcessing; // 实时预览处理时
   final Uint8List? previewBytes; // 处理后预览图
   final Uint8List? originalBytes; // 原图缓存（避免重复读盘）
+  final double scale;
+  final Offset translation;
 
   const FilterViewModelState({
     this.imagePath,
@@ -44,6 +47,8 @@ class FilterViewModelState {
     this.isPreviewProcessing = false,
     this.previewBytes,
     this.originalBytes,
+    this.scale = 1.0,
+    this.translation = Offset.zero,
   });
 
   FilterViewModelState copyWith({
@@ -57,6 +62,8 @@ class FilterViewModelState {
     bool? isPreviewProcessing,
     Uint8List? previewBytes,
     Uint8List? originalBytes,
+    double? scale,
+    Offset? translation,
     bool clearOriginalBytes = false,
     bool clearPreviewBytes = false,
   }) {
@@ -71,6 +78,8 @@ class FilterViewModelState {
       isPreviewProcessing: isPreviewProcessing ?? this.isPreviewProcessing,
       previewBytes: clearPreviewBytes ? null : (previewBytes ?? this.previewBytes),
       originalBytes: clearOriginalBytes ? null : (originalBytes ?? this.originalBytes),
+      scale: scale ?? this.scale,
+      translation: translation ?? this.translation,
     );
   }
 }
