@@ -35,14 +35,14 @@ class BeautySlider extends ConsumerWidget {
             state.smooth,
             (v) => notifier.setSmooth(v),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.gutterGrid),
           _buildSlider(
             context,
             l10n.beautyWhiten,
             state.whiten,
             (v) => notifier.setWhiten(v),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.gutterGrid),
           _buildSlider(
             context,
             l10n.beautySlim,
