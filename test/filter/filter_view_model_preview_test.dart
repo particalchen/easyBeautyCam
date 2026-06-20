@@ -140,5 +140,17 @@ void main() {
       expect(state.scale, 1.0);
       expect(state.translation, Offset.zero);
     });
+
+    test('setCropRatio 不重置 transform', () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setTransform(scale: 2.5, translation: const Offset(30, 40));
+
+      notifier.setCropRatio(CropRatio.ratio_1_1);
+
+      final state = container.read(filterViewModelProvider);
+      expect(state.scale, 2.5, reason: '切换比例不能把 scale 拉回 1.0');
+      expect(state.translation, const Offset(30, 40), reason: '切换比例不能把 translation 清零');
+      expect(state.cropRatio, CropRatio.ratio_1_1);
+    });
   });
 }
