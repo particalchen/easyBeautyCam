@@ -60,4 +60,20 @@ void main() {
     await tester.pump();
     expect(find.byType(InteractiveCropEditor), findsOneWidget);
   });
+
+  testWidgets('InteractiveCropEditor minScale 为 0.5（允许拉远）', (tester) async {
+    await tester.pumpWidget(_wrap(InteractiveCropEditor(
+      previewBytes: _kTinyPng,
+      imagePath: null,
+      cropRatio: CropRatio.ratio_1_1,
+      scale: 0.5,
+      translation: Offset.zero,
+      onTransformChanged: (_, __) {},
+    )));
+    await tester.pump();
+
+    final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    expect(viewer.minScale, 0.5);
+    expect(viewer.maxScale, 4.0);
+  });
 }

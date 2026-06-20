@@ -39,7 +39,7 @@ class _InteractiveCropEditorState extends State<InteractiveCropEditor> {
   late final TransformationController _ctrl;
   Timer? _debounce;
 
-  static const _minScale = 1.0;
+  static const _minScale = 0.5;
   static const _maxScale = 4.0;
 
   @override
