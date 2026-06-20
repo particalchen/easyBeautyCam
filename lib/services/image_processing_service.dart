@@ -130,6 +130,54 @@ class ImageProcessingService {
       whiten: whiten,
       slim: slim,
     );
+    // 自动亮度补偿：兜底「相机预览/拍照曝光不一致」导致的偏暗照片
+    // 仅当 mean luma < 75 时提升，亮图不被动
+    result = await normalizeBrightness(result);
     return result;
+  }
+
+  /// 自动亮度补偿：当图像整体偏暗时，把 RGB 通道统一往上抬到接近目标亮度。
+  ///
+  /// 算法：
+  /// - 计算 Rec.709 mean luma
+  /// - mean < 75 时，按 (110 - mean) * 0.85 加到 RGB；否则原样返回
+  /// - 用 clamp(0,255) 防止过曝
+  ///
+  /// 阈值与目标值的取舍：
+  /// - threshold=75 避免给本来就够亮的图加曝光
+  /// - target=110 + factor=0.85 让偏暗图（mean≈30）被提到 ≈98
+  Future<Uint8List> normalizeBrightness(Uint8List imageBytes) async {
+    final image = img.decodeImage(imageBytes);
+    if (image == null) return imageBytes;
+
+    double sum = 0;
+    int n = 0;
+    for (final p in image) {
+      sum += 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b;
+      n++;
+    }
+    final mean = sum / n;
+
+    const threshold = 75.0;
+    const target = 110.0;
+    if (mean >= threshold) return imageBytes;
+
+    final boost = ((target - mean) * 0.85).round();
+    if (boost <= 0) return imageBytes;
+
+    var result = img.Image(width: image.width, height: image.height);
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        final p = image.getPixel(x, y);
+        result.setPixelRgba(
+          x, y,
+          (p.r + boost).clamp(0, 255),
+          (p.g + boost).clamp(0, 255),
+          (p.b + boost).clamp(0, 255),
+          p.a.toInt(),
+        );
+      }
+    }
+    return Uint8List.fromList(img.encodePng(result));
   }
 }

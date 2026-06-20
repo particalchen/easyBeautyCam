@@ -13,6 +13,9 @@ class CameraService {
       enableAudio: false,
     );
     await _controller!.initialize();
+    // 补偿 iOS 上预览/拍照曝光不一致（真机报过「环境光够但照片偏暗」）
+    // +1.0 是经验值；setExposureOffset 在不支持的设备上会抛，需 try 兜底
+    await _applyExposureOffset(1.0);
   }
 
   CameraController? get controller => _controller;
@@ -31,6 +34,18 @@ class CameraService {
       enableAudio: false,
     );
     await _controller!.initialize();
+    await _applyExposureOffset(1.0);
+  }
+
+  /// 软应用曝光补偿；老设备/模拟器可能抛 CameraException，静默吞掉
+  Future<void> _applyExposureOffset(double offset) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      await c.setExposureOffset(offset);
+    } catch (_) {
+      // 不支持曝光补偿的设备（模拟器/部分 Android）直接跳过
+    }
   }
 
   Future<XFile?> takePicture() async {

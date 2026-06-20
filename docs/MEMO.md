@@ -1,7 +1,7 @@
 # EasyBeautyCam 项目备忘
 
 > 创建时间：2026-06-05
-> 最后更新：2026-06-19
+> 最后更新：2026-06-20
 
 ---
 
@@ -214,7 +214,7 @@ return Padding(
 
 ## 〇三、编辑页 UX 二轮修复（2026-06-20）
 
-真机截图发现的 3 个新问题，修 2 个，剩 1 个（照片暗）需要用户决定方向。
+真机截图发现的 3 个新问题，全 3 个已修。
 
 ### 已修 #1：图片预览黑色背景
 - **现象**：`_PhotoPreview` 用 `ColoredBox(color: Colors.black)` 兜底，导致竖向照片左右两侧出现黑色条
@@ -228,16 +228,21 @@ return Padding(
 - **修法**：把 `Border.all` 移到内层 50×50 按钮上；外层只用 `Container(width: 70)` 给水平间距
 - **Regression 测试**：「选中边框只包住 50×50 按钮，不撑满高度」—— 反向验证：临时把 border 改回外层后测试会失败
 
-### 未修 #3：照片特别暗（等用户决策）
-- **观察**：截图环境是昏暗办公室桌面（Mac mini + 键盘），整体光线弱；照片看起来确实暗
-- **可能根因**：
-  1. **环境光本身暗** —— 物理层面就这样，不算 bug
-  2. **Flutter camera 包预览和拍摄曝光不一致** —— 已知问题，预览流看起来正常，takePicture 后变暗。修法是相机端加 `setExposureOffset` 或 tap-to-focus + 曝光锁定
-  3. **image 包 decode 损失** —— 一般不会，但可验证
-- **现状**：未动代码，等用户确认方向（环境本来就暗 / 预览亮但保存暗 / 加自动提亮）。选「环境本来就暗」就什么都不动；选「预览亮但保存暗」会去动 camera_service；选「加自动提亮」会去动 image_processing_service
+### 已修 #3：照片特别暗（用户确认是 bug，环境光充足）
+- **用户反馈**：「照片暗不是拍照本身的问题，因为在拍摄的时候光照是足够的」—— 排除「环境本身暗」
+- **最终根因**：
+  1. **相机端**：iOS 上 Flutter `camera` 包预览流和 `takePicture` 出来的照片曝光参数可能不一致（已知问题）；相机没有调用 `setExposureOffset`，完全用系统默认曝光
+  2. **处理端**：`image_processing_service.processImage` 只做滤镜 + 美颜，没有任何兜底亮度补偿
+- **修法（双保险）**：
+  - **相机端**（`lib/services/camera_service.dart`）：`initialize` / `switchCamera` 后调 `setExposureOffset(1.0)`（+1.0 档为经验值，在 iOS 上能明显补偿偏暗），用 try/catch 兜底（模拟器/部分 Android 抛 CameraException）
+  - **处理端**（`lib/services/image_processing_service.dart`）：新增 `normalizeBrightness`，在 `processImage` 末尾自动调；算法 = Rec.709 mean luma < 75 时，把 RGB 各通道 + (110-mean)*0.85，clamp 255 防过曝；亮图（mean ≥ 75）原样不动
+- **Regression 测试**：`test/services/image_processing_service_test.dart` 两组断言：
+  - 偏暗图（rgb(30) 全填充，mean=30）经 processImage 后 mean luma ≥ 90（实际 ≈98）
+  - 亮图（rgb(200) 全填充，mean=200）不被过度提亮，落在 [180, 220]
+  - TDD 验证：先写测试确认 RED，再写实现确认 GREEN
 
 ### 验证
-- 53/53 测试通过
+- 55/55 测试通过（+2 个亮度回归）
 - `flutter analyze` 无新增 issue
 - 7 个 pre-existing withOpacity lint 无变化
 
