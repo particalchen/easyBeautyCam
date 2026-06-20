@@ -73,18 +73,68 @@ Future<void> _pump(WidgetTester tester, FilterViewModel stub) async {
 }
 
 void main() {
-  testWidgets('默认 state：渲染 6 个比例 chip + 重置按钮', (tester) async {
+  testWidgets('默认 state：渲染 6 个比例 chip + 重置按钮（IconButton）', (tester) async {
     await _pump(tester, _Stub(const FilterViewModelState()));
     expect(find.text('原图'), findsOneWidget);
+    expect(find.text('16:9'), findsOneWidget);
+    expect(find.text('4:3'), findsOneWidget);
     expect(find.text('1:1'), findsOneWidget);
-    expect(find.text('重置'), findsOneWidget);
+    expect(find.text('3:4'), findsOneWidget);
+    expect(find.text('9:16'), findsOneWidget);
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.byTooltip('重置'), findsOneWidget);
   });
 
   testWidgets('scale≠1.0 时点重置按钮，scale 被 reset 到 1.0', (tester) async {
     final stub = _Stub(const FilterViewModelState(scale: 2.0));
     await _pump(tester, stub);
-    await tester.tap(find.text('重置'));
+    await tester.tap(find.byIcon(Icons.refresh));
     await tester.pump();
     expect(stub.state.scale, 1.0);
+  });
+
+  testWidgets('CropRatioBar 重置按钮位置在比例行最右侧', (tester) async {
+    await _pump(tester, _Stub(const FilterViewModelState()));
+    final resetRect = tester.getRect(find.byIcon(Icons.refresh));
+    for (final label in ['原图', '16:9', '4:3', '1:1', '3:4', '9:16']) {
+      final chipRect = tester.getRect(find.text(label));
+      expect(
+        resetRect.center.dx,
+        greaterThan(chipRect.center.dx),
+        reason: '重置按钮 ($label) 应该位于 $label chip 的右侧',
+      );
+    }
+  });
+
+  testWidgets('CropRatioBar 默认状态下重置按钮 disabled', (tester) async {
+    await _pump(tester, _Stub(const FilterViewModelState()));
+    final iconButton = tester.widget<IconButton>(find.byType(IconButton));
+    expect(iconButton.onPressed, isNull,
+        reason: '默认 state（scale=1, translation=zero）下重置按钮应 disabled');
+  });
+
+  testWidgets('CropRatioBar scale≠1.0 时重置按钮 enabled 且可点', (tester) async {
+    final stub = _Stub(const FilterViewModelState(scale: 2.0));
+    await _pump(tester, stub);
+    final iconButton = tester.widget<IconButton>(find.byType(IconButton));
+    expect(iconButton.onPressed, isNotNull,
+        reason: 'scale=2.0 时重置按钮应 enabled');
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pump();
+    expect(stub.state.scale, 1.0);
+  });
+
+  testWidgets('CropRatioBar 选中状态: 原图 chip 在默认 state 下被选中', (tester) async {
+    await _pump(tester, _Stub(const FilterViewModelState()));
+    // 找到包裹 "原图" 文字的 AnimatedContainer，验证它的 decoration 背景是 primary
+    final chipContainerFinder = find.ancestor(
+      of: find.text('原图'),
+      matching: find.byType(AnimatedContainer),
+    );
+    expect(chipContainerFinder, findsOneWidget);
+    final container = tester.widget<AnimatedContainer>(chipContainerFinder);
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.color, isNotNull,
+        reason: '原图 chip 默认选中，应有背景色');
   });
 }
