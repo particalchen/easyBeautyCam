@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_radii.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -12,16 +11,14 @@ import 'widgets/crop_ratio_bar.dart';
 import 'widgets/filter_carousel.dart';
 import 'widgets/interactive_crop_editor.dart';
 
-/// 拍后编辑页：图片预览 + 滤镜/美颜 tab
+/// 拍后编辑页（全屏路由）：图片预览 + 滤镜/美颜/裁切 tab
 ///
-/// 触发：拍完照后从 camera_screen showModalBottomSheet 弹出
-/// 设计：DESIGN.md Elevation & Depth › Floating Panels
+/// 触发：拍完照后从 camera_screen Navigator.push(MaterialPageRoute(fullscreenDialog: true)) 进入
 /// 布局（自上而下）：
-/// 1. 拖动条
-/// 2. 顶部栏（取消 / 编辑 / 保存）
-/// 3. 图片预览（全宽，按比例 contain 不裁切）
-/// 4. TabBar（滤镜 / 美颜）
-/// 5. TabBarView（FilterCarousel / BeautySlider）
+/// 1. 顶部栏（取消 / 编辑 / 保存）
+/// 2. 图片预览（Expanded，占满中间空间）
+/// 3. TabBar（滤镜 / 美颜 / 裁切）
+/// 4. TabBarView（高度 150）
 class FilterPanel extends ConsumerStatefulWidget {
   const FilterPanel({super.key});
 
@@ -50,26 +47,13 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(filterViewModelProvider);
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.overlayBg,
-        borderRadius: AppRadii.sheetTop,
-      ),
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: AppColors.overlayBg,
+      body: SafeArea(
         top: false,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
-            // ── 拖动条 ──
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.outlineVariant,
-                borderRadius: BorderRadius.circular(AppRadii.full),
-              ),
-            ),
             // ── 顶部栏 ──
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -110,17 +94,14 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
                 ],
               ),
             ),
-            // ── 图片预览 ──
+            // ── 图片预览（Expanded）──
             if (state.imagePath != null || state.previewBytes != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.marginMain),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.38,
-                  ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.marginMain),
                   child: ClipRRect(
-                    borderRadius: AppRadii.xlAll,
+                    borderRadius: const BorderRadius.all(Radius.circular(16)),
                     child: InteractiveCropEditor(
                       previewBytes: state.previewBytes,
                       imagePath: state.imagePath,
@@ -146,7 +127,7 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
                 Tab(text: '裁切'),
               ],
             ),
-            // ── TabView（高度 150，让出更多空间给照片预览）──
+            // ── TabView（高度 150）──
             SizedBox(
               height: 150,
               child: TabBarView(
@@ -177,6 +158,3 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
     if (context.mounted) Navigator.pop(context, path);
   }
 }
-
-/// 图片预览已替换为 InteractiveCropEditor（支持双指缩放 / 单指拖动 + 裁切框遮罩）
-/// 旧的 _PhotoPreview 类已删除。

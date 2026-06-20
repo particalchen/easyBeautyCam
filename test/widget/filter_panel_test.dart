@@ -5,6 +5,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:easy_beauty_cam/core/theme/app_colors.dart';
+import 'package:easy_beauty_cam/core/theme/app_radii.dart';
 import 'package:easy_beauty_cam/features/filter/filter_panel.dart';
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
@@ -254,6 +256,78 @@ void main() {
       expect(tester.takeException(), isNull);
       // 预览图渲染成功
       expect(find.byType(Image), findsWidgets);
+    });
+
+    // Task 5: FilterPanel 全屏布局改造 - 不再是 BottomSheet
+    testWidgets('FilterPanel 全屏布局：无 BottomSheet 拖动条', (tester) async {
+      // 给一个足够大的 viewport，避免 TabBar/Preview 在小空间内被裁剪到测试不到拖动条
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            filterViewModelProvider.overrideWith((ref) {
+              final vm = _StubRepo();
+              vm.debugSetPreview('/tmp/test.jpg', _kTallPng);
+              return vm;
+            }),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: Locale('zh'),
+            home: Scaffold(body: Material(child: FilterPanel())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 不应再有 36x4 的灰色拖动条
+      final dragBar = find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.constraints?.maxWidth == 36 &&
+            w.constraints?.maxHeight == 4,
+      );
+      expect(dragBar, findsNothing,
+          reason: 'FilterPanel 全屏后不应有 BottomSheet 拖动条');
+    });
+
+    testWidgets('FilterPanel 全屏布局：顶层是 Scaffold 不是 BottomSheet 圆角容器',
+        (tester) async {
+      await pumpPanel(tester);
+
+      // 老的 BottomSheet 圆角容器：
+      // Container(decoration: BoxDecoration(color: AppColors.overlayBg, borderRadius: AppRadii.sheetTop))
+      // 全屏后应该不再存在
+      final sheetTopContainer = find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).color == AppColors.overlayBg &&
+            (w.decoration as BoxDecoration).borderRadius ==
+                AppRadii.sheetTop,
+      );
+      expect(sheetTopContainer, findsNothing,
+          reason: 'FilterPanel 全屏后不应再有 sheetTop 圆角容器');
+    });
+
+    testWidgets('FilterPanel 顶部栏包含 "编辑" 标题、取消和保存按钮',
+        (tester) async {
+      await pumpPanel(tester);
+
+      // 默认 state.isProcessing == false，所以保存按钮显示文字而非 spinner
+      expect(find.text('取消'), findsOneWidget);
+      expect(find.text('编辑'), findsOneWidget);
+      expect(find.text('保存'), findsOneWidget);
     });
   });
 }
