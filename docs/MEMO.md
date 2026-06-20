@@ -5,14 +5,24 @@
 
 ---
 
-## 〇、最新进度（2026-06-19）
+## 〇、最新进度（2026-06-20）
 
-### 真机回归 bug 修复 ✅ 完成（5/5）
-1. **0.5x 焦段无反应**：pinch 手势 `clamp(1.0, 5.0)` 下限错误 → 改为 `clamp(0.5, 5.0)` + 记录 baseZoom 避免累计漂移
+### 相机 / 编辑 / 相册 三端 UX 批量调整 ✅ 完成（8/8，commit `ee5aa3b`）
+1. **相册全屏关闭按钮**：默认 IconButton 太小、位置偏左 → 48pt 圆形 + 半透明深色底 + 固定右上角
+2. **焦段按钮文字统一**：`0.5x` / `1x` / `2x` / `3x`（去掉之前 `.5` / `2` / `3` 不一致写法）
+3. **实时相机偏亮**：回退上一节 `setExposureOffset(+1.0)`，走相机默认曝光；处理端亮度补偿保留
+4. **0.5x 焦段无效**：相机端查 `getMinZoomLevel` / `getMaxZoomLevel`，UI 层 pill 自动过滤到硬件支持范围，pinch 范围同步
+5. **默认美颜参数**：`defaultBeautySmooth` / `defaultBeautyWhiten` 从 30/20 改为 0/0（拍原图，需要时再手动调）
+6. **照片编辑加裁切**：「裁切」Tab（第三个）提供 自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16 六个比例；`img.copyCrop` 中心裁切 + `FilterViewModel.cropRatio` debounce
+7. **点击相机画面自动对焦曝光**：`onTapUp` + `setFocusPoint` + `setExposurePoint`，0.9s 珊瑚色对焦指示框
+8. **美颜滑动条变小 + 编辑区缩小**：字号 14→12、track 4→2pt、thumb 14→8；TabView 200→150、预览 0.45→0.38 屏幕
+
+### 历史真机回归 bug 修复（2026-06-19，commit `3a1a4ad`）
+1. **0.5x 焦段无反应**：pinch 手势 `clamp(1.0, 5.0)` 下限错误 → 改为 `clamp(0.5, 5.0)` + 记录 baseZoom 避免累计漂移（#4 已用硬件 query 替代这个软修法）
 2. **拍照无反馈**：加 350ms 全屏闪白动画（`AnimationController`）+ `SystemSound.play(SystemSoundType.click)` 声效
 3. **相册不是 app 内 grid**：新增 `AppPhotoRepository`（本地文件 + JSON manifest），与 `PhotoAlbumRepository`（photo_manager 读本机相册）解耦；PhotoAlbumScreen 改读 AppPhotoRepository
 4. **照片处理 UX 缺陷**：
-   - 照片预览改 `BoxFit.contain` + 黑色底，不裁切竖向照片
+   - 照片预览改 `BoxFit.contain` + 黑色底，不裁切竖向照片（后续「〇二」中改为暖白底，去掉黑色）
    - FilterPanel 加 TabBar（滤镜 / 美颜），替代原来垂直堆叠
    - FilterViewModel 加 `previewBytes` 实时反映：selectFilter / setSmooth / setWhiten / setSlim 触发 200ms debounce 异步重处理 + `Image.memory` 显示
 5. **保存照片被模糊**：`applyBeauty` 磨皮参数调小 —— radius `smooth/30`（30→1）、blendFactor `smooth/500`（30→0.06），不再糊脸
@@ -27,14 +37,15 @@
 ### 基础设施
 - 完整 token 体系：AppColors / AppSpacing / AppRadii / AppTypography
 - 中英 i18n：flutter gen-l10n，MaterialApp.router 接入
-- 测试覆盖：51 个测试（21 A + 22 B-F + 8 真机回归）全过
-- 7 个 flutter analyze issues（全部预存在的 withOpacity deprecation，无新增）
+- 测试覆盖：62 个测试（21 A + 22 B-F + 8 真机回归 + 2 亮度 + 4 裁切 + 2 硬件 zoom + 1 裁切 UI + 2 变焦格式）全过
+- 8 个 flutter analyze issues（全部预存在的 withOpacity deprecation，无新增）
 
 ### 下一步
 - P1：E 菜单 3 个入口的落地页（姿势库管理 / 设置 / 关于）
 - P1：用户自定义姿势导入
-- 修剩余 7 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
+- 修剩余 8 个 withOpacity deprecation（Flutter 3.27+ 推荐 .withValues）
 - AppPhotoRepository 持久化层可改用 hive（当前 JSON 够轻量）
+- 裁切功能后续：当前是固定中心裁切，P2 可加可拖动选区 + 旋转
 
 ---
 
@@ -245,6 +256,117 @@ return Padding(
 - 55/55 测试通过（+2 个亮度回归）
 - `flutter analyze` 无新增 issue
 - 7 个 pre-existing withOpacity lint 无变化
+
+---
+
+## 〇四、相机 / 编辑 / 相册 三端 UX 批量调整（2026-06-20）
+
+真机使用中发现一批细节 UX 问题，一次性 8 项修于 commit `ee5aa3b`，62/62 测试通过。
+
+### #1 相册全屏预览：关闭按钮放大 + 右上角
+- **现象**：默认 `IconButton` 太小、位置在顶部 left（被刘海/灵动岛挡住），浅色照片上几乎看不见
+- **修法**（`lib/features/photo_album/photo_album_screen.dart`）：
+  - 尺寸从默认 ~40pt 升到 **48pt**（含半透明深色圆底）
+  - `Positioned(top: 0, right: 0)` 固定右上角，加 `SafeArea` 避灵动岛
+  - 圆底：`Colors.black.withValues(alpha: 0.4)` + 28pt 白色 close icon
+  - 用 `Material + InkWell + CircleBorder` 保留涟漪反馈
+
+### #2 焦段按钮文字统一为 "Nx"
+- **现象**：之前 `.5` / `1x` / `2` / `3` 格式不一致（0.5 用 ".5" 是 iOS 风格，但 2/3 又是裸数字）
+- **修法**（`lib/features/camera/widgets/camera_controls.dart` `_zoomLabel`）：
+  ```dart
+  String _zoomLabel(double z) {
+    if (z == z.truncateToDouble()) return '${z.toInt()}x';  // 1 → "1x"
+    return '${z.toString()}x';                              // 0.5 → "0.5x"
+  }
+  ```
+- **Regression 测试**：4 个原断言（`.5` / `1x` / `2` / `3`）全部更新为 `0.5x` / `1x` / `2x` / `3x`
+
+### #3 实时相机偏亮：回退曝光补偿
+- **背景**：上一节为修「照片偏暗」加了 `setExposureOffset(+1.0)`，结果在某些机型上实时预览偏亮
+- **修法**（`lib/services/camera_service.dart`）：
+  - 删除 `initialize` / `switchCamera` 里的 `_applyExposureOffset(1.0)` 调用
+  - 走相机默认曝光参数
+  - 处理端 `normalizeBrightness` 兜底保留（双保险中的「处理端」那半边）
+- **影响**：实时预览恢复正常亮度；保存的暗照片仍会被自动提亮
+
+### #4 0.5x 焦段无效：跟随硬件实际支持范围
+- **根因**：
+  - 大部分 iOS 后置相机 `getMinZoomLevel() == 1.0`（不支持 0.5x）
+  - 之前 `clamp(0.5, 5.0)` 是软下限，硬件 reject 0.5 后被 silently clamp 到 1.0，pill 也对不上
+  - pinch 路径同样问题
+- **修法**：
+  - `CameraService._queryZoomRange()` 在 `initialize` / `switchCamera` 后查 `getMinZoomLevel` / `getMaxZoomLevel`，try/catch 兜底老 API
+  - 暴露 `minZoomLevel` / `maxZoomLevel` getter
+  - `CameraControls` 接收 `minZoom` / `maxZoom` 参数，pill 列表用 `.where((z) => z ∈ [minZoom, maxZoom])` 自动过滤
+  - `camera_screen` pinch handler 用同一范围 clamp
+  - `setZoom` 在 service 层也 clamp，UI 调用永远安全
+- **效果**：硬件只支持 1.0~5.0 的设备，0.5x pill 自动不显示；双指 pinch 也会卡在 1.0；2x/3x 仍可点
+- **Regression 测试**（`test/widget/camera_controls_test.dart`）：
+  - `minZoom=1.0` 时 0.5x pill 被过滤（`findsNothing`）
+  - `maxZoom=2.0` 时 3x pill 被过滤
+
+### #5 默认美颜参数全部归 0
+- **现象**：`AppConstants.defaultBeautySmooth = 30` / `defaultBeautyWhiten = 20` 是开发者默认值，但用户偏好"拍原图，需要时再手动调"
+- **修法**（`lib/core/constants/app_constants.dart`）：三个美颜常量全改 0
+  ```dart
+  static const double defaultBeautySmooth = 0.0;
+  static const double defaultBeautyWhiten = 0.0;
+  static const double defaultBeautySlim   = 0.0;  // 本来就是 0
+  ```
+- **影响**：新照片进编辑页时滑杆全在 0 位置，预览 = 原图
+
+### #6 照片编辑：新增「裁切」Tab
+- **需求**：6 个比例（自由 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16）
+- **修法**：
+  - **`lib/services/image_processing_service.dart`**：
+    - 新增 `enum CropRatio { free, ratio_16_9, ratio_4_3, ratio_1_1, ratio_3_4, ratio_9_16 }` + `extension CropRatioX` 提供 `ratio`（double?）和 `label`（String）
+    - 新增 `crop(Uint8List, CropRatio)`：用 `img.copyCrop` 做中心裁切，算法 = 比较 `imageW/H` 与目标比，裁宽/裁高
+  - **`lib/features/filter/filter_view_model.dart`**：
+    - `FilterViewModelState` 加 `cropRatio` 字段（默认 `CropRatio.free`）
+    - 新增 `setCropRatio(CropRatio)` 方法，走 200ms debounce
+    - `_runProcess` 在 `processImage` 之后、`normalizeBrightness` 之后按需调 `crop`
+  - **`lib/features/filter/filter_panel.dart`**：`TabController(length: 2)` → 3；TabBar 加第 3 个「裁切」Tab
+  - **`lib/features/filter/widgets/crop_ratio_bar.dart`**（新文件）：横向滚动 6 个比例 chip，珊瑚色填充选中态
+- **Regression 测试**（`test/services/image_processing_service_test.dart`）：
+  - 1:1 裁 400×200 → 200×200 ✓
+  - 16:9 裁 200×400 → 200×113（`round(200×9/16) = 113`）✓
+  - 9:16 裁 400×200 → 113×200 ✓
+  - free 不裁切，输出尺寸与原图一致 ✓
+  - `test/widget/filter_panel_test.dart` 新增「切到裁切 tab 显示 6 个比例按钮 + 切比例触发 setCropRatio」
+
+### #7 点击相机画面自动对焦 + 曝光
+- **背景**：iOS 系统相机点哪对焦哪，Flutter camera 包支持 `setFocusPoint` / `setExposurePoint` 但需要手动调
+- **修法**：
+  - **`lib/services/camera_service.dart`**：新增 `focusAndExposeAt(Offset point)`，`point ∈ [0,1]²` 是预览区域的归一化坐标；try/catch 兜底模拟器/不支持设备
+  - **`lib/features/camera/camera_view_model.dart`**：薄包装 `focusAndExposeAt`
+  - **`lib/features/camera/camera_screen.dart`**：
+    - `GestureDetector` 加 `onTapUp`：把 `globalPosition` 转为相对当前 widget 的 [0,1] 坐标
+    - 调 `notifier.focusAndExposeAt(point)` + `_showFocusIndicator(point, size)`
+    - `_focusPoint` / `_focusSize` / `_focusTimer`：0.9s 后用 `setState(() => _focusPoint = null)` 自动消失
+    - 指示器：`Container(80×80)` + 珊瑚色 1.5pt 边框 + 4pt 圆角，用 `Positioned` 算 `left/top = point * size - 40`
+- **注意**：`onTapUp` 跟 `onScaleStart` / `onScaleUpdate` 在同一个 GestureDetector 上是 OK 的（GestureDetector 会区分 tap 和 scale）
+
+### #8 美颜滑动条变小 + 编辑区再缩小
+- **修法**：
+  - **`lib/features/filter/widgets/beauty_slider.dart`**：
+    - 标签列宽 40→36pt、字号 14→12pt
+    - `SliderTheme`：`trackHeight=2`、`thumbShape=RoundSliderThumbShape(enabledThumbRadius: 8)`、`overlayShape=RoundSliderOverlayShape(overlayRadius: 14)`
+    - 数值列宽 32→28pt、字号 14→11pt
+    - 滑杆间 `SizedBox` 8→4pt
+    - `_buildSlider` 现在接 `BuildContext context` 参数（之前是 closure，SliderTheme 找不到 context）
+  - **`lib/features/filter/filter_panel.dart`**：
+    - TabView 高度 200→150
+    - `_PhotoPreview` maxHeight 屏幕比例 0.45→0.38（≈304pt @ 800pt 屏）
+
+### 验证
+- 62/62 测试通过（+2 亮度 + 4 裁切 + 2 硬件 zoom 过滤 + 1 裁切 UI）
+- `flutter analyze` 无新增 issue
+- 8 个 pre-existing withOpacity lint 无变化
+
+### 一并修改的 8 项 vs 之前修法的关系
+- #3 实时相机偏亮：撤销了 `〇三节 #3` 中「相机端加 setExposureOffset(+1.0)」那半边；处理端 `normalizeBrightness` 保留
+- #4 0.5x 焦段：用硬件 query 替代了 `〇一节 #1` 里的「clamp 下限 0.5」软修法
 
 ---
 
