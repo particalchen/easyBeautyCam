@@ -28,7 +28,7 @@ void main() {
   testWidgets('InteractiveCropEditor 渲染 InteractiveViewer + Image', (tester) async {
     await tester.pumpWidget(_wrap(InteractiveCropEditor(
       previewBytes: _kTinyPng,
-      cropRatio: CropRatio.free,
+      cropRatio: CropRatio.original,
       scale: 1.0,
       translation: Offset.zero,
       onTransformChanged: (_, __) {},
@@ -54,7 +54,7 @@ void main() {
   testWidgets('自由比例：不报错', (tester) async {
     await tester.pumpWidget(_wrap(InteractiveCropEditor(
       previewBytes: _kTinyPng,
-      cropRatio: CropRatio.free,
+      cropRatio: CropRatio.original,
       scale: 1.0,
       translation: Offset.zero,
       onTransformChanged: (_, __) {},

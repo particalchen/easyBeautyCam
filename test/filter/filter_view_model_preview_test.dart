@@ -255,6 +255,32 @@ void main() {
           reason: '自由比例 + 未缩放平移 = 不需要 applyTransform');
     });
 
+    test('FilterViewModelState 默认 cropRatio 是 CropRatio.original', () {
+      const state = FilterViewModelState();
+      expect(state.cropRatio, CropRatio.original);
+    });
+
+    test(
+        'saveProcessedImage 在 cropRatio=original + scale!=1 时调 applyTransform(targetRatio: null)',
+        () async {
+      final processing = _CapturingProcessingService();
+      final writer = _NoopWriter();
+      final repo = _NoopRepo();
+      final vm = FilterViewModel(processing, writer, repo);
+      vm.setImage(tempFile.path);
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // vm 默认 cropRatio = original
+      vm.setTransform(scale: 2.0, translation: Offset.zero);
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      processing.applyTransformCallCount = 0;
+      await vm.saveProcessedImage();
+
+      expect(processing.applyTransformCallCount, 1);
+      expect(processing.lastTargetRatio, isNull);
+    });
+
     test('saveProcessedImage 比例 1:1 调用 applyTransform(targetRatio: 1.0) 输出不拉伸',
         () async {
       // 用真实 service 跑

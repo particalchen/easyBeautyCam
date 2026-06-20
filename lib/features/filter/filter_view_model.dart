@@ -39,7 +39,7 @@ class FilterViewModelState {
   const FilterViewModelState({
     this.imagePath,
     this.selectedFilter = FilterType.coral,
-    this.cropRatio = CropRatio.free,
+    this.cropRatio = CropRatio.original,
     this.smooth = AppConstants.defaultBeautySmooth,
     this.whiten = AppConstants.defaultBeautyWhiten,
     this.slim = AppConstants.defaultBeautySlim,
@@ -208,7 +208,7 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
 
     // 裁切 + transform（自由比例 = 仅在用户缩放/平移过时按可见区域裁切）
     final ratio = state.cropRatio;
-    if (ratio != CropRatio.free) {
+    if (ratio != CropRatio.original) {
       bytes = await _processingService.applyTransform(
         bytes,
         scale: state.scale,

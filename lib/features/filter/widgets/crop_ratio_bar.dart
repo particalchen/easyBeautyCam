@@ -15,7 +15,7 @@ class CropRatioBar extends ConsumerWidget {
   const CropRatioBar({super.key});
 
   static const _ratios = [
-    CropRatio.free,
+    CropRatio.original,
     CropRatio.ratio_16_9,
     CropRatio.ratio_4_3,
     CropRatio.ratio_1_1,

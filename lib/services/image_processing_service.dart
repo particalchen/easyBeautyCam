@@ -233,7 +233,7 @@ class ImageProcessingService {
 
   /// 按指定比例中心裁切图像
   ///
-  /// - ratio == null（CropRatio.free）→ 原样返回
+  /// - ratio == null（CropRatio.original）→ 原样返回
   /// - 图比目标更宽（imageW/H > targetRatio）→ 裁左右，保留上下
   /// - 图比目标更窄（imageW/H < targetRatio）→ 裁上下，保留左右
   /// - 等比 → 不动

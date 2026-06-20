@@ -145,7 +145,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 6 个比例按钮全在
-      expect(find.text('自由'), findsOneWidget);
+      expect(find.text('原图'), findsOneWidget);
       expect(find.text('16:9'), findsOneWidget);
       expect(find.text('4:3'), findsOneWidget);
       expect(find.text('1:1'), findsOneWidget);

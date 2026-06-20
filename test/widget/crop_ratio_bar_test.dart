@@ -75,7 +75,7 @@ Future<void> _pump(WidgetTester tester, FilterViewModel stub) async {
 void main() {
   testWidgets('默认 state：渲染 6 个比例 chip + 重置按钮', (tester) async {
     await _pump(tester, _Stub(const FilterViewModelState()));
-    expect(find.text('自由'), findsOneWidget);
+    expect(find.text('原图'), findsOneWidget);
     expect(find.text('1:1'), findsOneWidget);
     expect(find.text('重置'), findsOneWidget);
   });
