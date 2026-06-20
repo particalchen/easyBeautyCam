@@ -278,12 +278,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final path = await notifier.takePicture();
     if (path != null && mounted) {
       ref.read(filterViewModelProvider.notifier).setImage(path);
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => const FilterPanel(),
+      // 暂停相机预览（CameraController 实例保留，停止后台采集）
+      final cameraService = ref.read(cameraServiceProvider);
+      unawaited(cameraService.pausePreview());
+
+      final savedPath = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => const FilterPanel(),
+          fullscreenDialog: true,
+        ),
       );
+
+      // 编辑面板关闭 → 恢复预览
+      if (mounted) {
+        unawaited(cameraService.resumePreview());
+        // TODO: 处理 savedPath（如刷新相册等）
+      }
     }
   }
 }
