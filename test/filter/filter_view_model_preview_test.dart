@@ -57,8 +57,11 @@ class _CapturingProcessingService extends ImageProcessingService {
 }
 
 class _NoopWriter implements PhotoAlbumWriter {
+  Uint8List? lastSavedBytes;
   @override
-  Future<void> saveImage(Uint8List bytes, {required String filename}) async {}
+  Future<void> saveImage(Uint8List bytes, {required String filename}) async {
+    lastSavedBytes = bytes;
+  }
 }
 
 class _NoopRepo implements AppPhotoRepository {
@@ -180,19 +183,115 @@ void main() {
       expect(state.cropRatio, CropRatio.ratio_1_1);
     });
 
-    test('setTransform 触发 applyTransform 调用', () async {
+    test('setTransform 触发 processImage 重跑（预览只跑滤镜+美颜）', () async {
       final notifier = container.read(filterViewModelProvider.notifier);
       notifier.setCropRatio(CropRatio.ratio_1_1);
       notifier.setImage(tempFile.path);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      final c1 = svc.applyTransformCallCount;
+      final c1 = svc.callCount;
+      final at1 = svc.applyTransformCallCount;
 
       notifier.setTransform(scale: 2.0, translation: const Offset(0.1, 0.2));
       await Future<void>.delayed(const Duration(milliseconds: 280));
 
-      expect(svc.applyTransformCallCount, greaterThan(c1));
-      expect(svc.lastScale, 2.0);
-      expect(svc.lastTranslation, const Offset(0.1, 0.2));
+      // setTransform 仍触发 _runProcess（重跑滤镜+美颜）
+      expect(svc.callCount, greaterThan(c1), reason: 'setTransform 应触发 _runProcess');
+      // 但 _runProcess 不再调 applyTransform（裁切只在 save 时）
+      expect(svc.applyTransformCallCount, at1,
+          reason: '预览不调 applyTransform');
+    });
+
+    test('setCropRatio 切换比例不触发 applyTransform (预览保持未裁切图)', () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      svc.applyTransformCallCount = 0; // 重置计数
+
+      notifier.setCropRatio(CropRatio.ratio_1_1);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(svc.applyTransformCallCount, 0,
+          reason: 'setCropRatio 不应触发 applyTransform');
+    });
+
+    test('_runProcess 不调用 applyTransform (预览只跑滤镜+美颜)', () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setCropRatio(CropRatio.ratio_1_1); // 即便比例非自由
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(svc.applyTransformCallCount, 0,
+          reason: '_runProcess 只跑滤镜+美颜，不做裁切');
+    });
+
+    test('saveProcessedImage 自由比例 + scale != 1.0 调用 applyTransform(targetRatio: null)',
+        () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      notifier.setTransform(scale: 2.0, translation: Offset.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      svc.applyTransformCallCount = 0;
+      await notifier.saveProcessedImage();
+
+      expect(svc.applyTransformCallCount, 1);
+      expect(svc.lastTargetRatio, isNull,
+          reason: '自由比例 + scale != 1.0 应传 targetRatio: null');
+    });
+
+    test('saveProcessedImage 自由比例 + scale=1.0 + translation=zero 不调用 applyTransform',
+        () async {
+      final notifier = container.read(filterViewModelProvider.notifier);
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      svc.applyTransformCallCount = 0;
+      await notifier.saveProcessedImage();
+
+      expect(svc.applyTransformCallCount, 0,
+          reason: '自由比例 + 未缩放平移 = 不需要 applyTransform');
+    });
+
+    test('saveProcessedImage 比例 1:1 调用 applyTransform(targetRatio: 1.0) 输出不拉伸',
+        () async {
+      // 用真实 service 跑
+      final processing = ImageProcessingService();
+      final realWriter = _NoopWriter();
+      final realRepo = _NoopRepo();
+
+      final src = img.Image(width: 4000, height: 3000);
+      img.fill(src, color: img.ColorRgb8(255, 0, 0));
+      final testPath = '${Directory.systemTemp.path}/test_4000x3000.png';
+      File(testPath).writeAsBytesSync(Uint8List.fromList(img.encodePng(src)));
+
+      final realContainer = ProviderContainer(
+        overrides: [
+          imageProcessingServiceProvider.overrideWithValue(processing),
+          photoAlbumWriterProvider.overrideWithValue(realWriter),
+          appPhotoRepositoryProvider.overrideWithValue(realRepo),
+        ],
+      );
+      final notifier = realContainer.read(filterViewModelProvider.notifier);
+      notifier.setImage(testPath);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      notifier.setCropRatio(CropRatio.ratio_1_1);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      realWriter.lastSavedBytes = null;
+      await notifier.saveProcessedImage();
+      final savedBytes = realWriter.lastSavedBytes;
+
+      expect(savedBytes, isNotNull);
+      final out = img.decodeImage(savedBytes!)!;
+      expect(out.width, 3000, reason: '1:1 应输出 3000x3000 不拉伸');
+      expect(out.height, 3000);
+
+      realContainer.dispose();
+      File(testPath).deleteSync();
     });
   });
 }

@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image/image.dart' as img;
 
 import '../../services/image_processing_service.dart';
 import '../../services/photo_album_writer.dart';
@@ -116,7 +115,7 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
 
   void setCropRatio(CropRatio ratio) {
     state = state.copyWith(cropRatio: ratio);
-    _scheduleProcess();
+    // 不再触发 _runProcess：预览 = 未裁切原图，比例切换只改遮罩
   }
 
   void setTransform({double? scale, Offset? translation}) {
@@ -183,19 +182,7 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
       slim: state.slim,
     );
 
-    // 裁切 + transform
-    final ratio = state.cropRatio;
-    if (ratio != CropRatio.free && processed.isNotEmpty) {
-      final procImg = _safeDecodeImage(processed);
-      if (procImg != null) {
-        processed = await _processingService.applyTransform(
-          processed,
-          scale: state.scale,
-          translation: state.translation,
-          targetRatio: ratio.ratio,
-        );
-      }
-    }
+    // 预览只跑滤镜+美颜，不做裁切；裁切 + transform 只在 saveProcessedImage 内执行
 
     if (!mounted) return;
     state = state.copyWith(
@@ -210,32 +197,31 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     state = state.copyWith(isProcessing: true);
 
     // 优先用已处理的 previewBytes；否则现处理一份
-    var bytes = state.previewBytes;
-    bytes ??= await _processingService.processImage(
-      await _readImageBytes(state.imagePath!),
-      filter: state.selectedFilter,
-      smooth: state.smooth,
-      whiten: state.whiten,
-      slim: state.slim,
-    );
-
-    // 裁切 + transform（与 _runProcess 一致）
-    final ratio = state.cropRatio;
-    if (ratio != CropRatio.free && bytes != null) {
-      final procImg = _safeDecodeImage(bytes);
-      if (procImg != null) {
-        bytes = await _processingService.applyTransform(
-          bytes,
-          scale: state.scale,
-          translation: state.translation,
-          targetRatio: ratio.ratio,
+    Uint8List bytes = state.previewBytes ??
+        await _processingService.processImage(
+          await _readImageBytes(state.imagePath!),
+          filter: state.selectedFilter,
+          smooth: state.smooth,
+          whiten: state.whiten,
+          slim: state.slim,
         );
-      }
-    }
 
-    if (bytes == null) {
-      state = state.copyWith(isProcessing: false);
-      return null;
+    // 裁切 + transform（自由比例 = 仅在用户缩放/平移过时按可见区域裁切）
+    final ratio = state.cropRatio;
+    if (ratio != CropRatio.free) {
+      bytes = await _processingService.applyTransform(
+        bytes,
+        scale: state.scale,
+        translation: state.translation,
+        targetRatio: ratio.ratio,
+      );
+    } else if (state.scale != 1.0 || state.translation != Offset.zero) {
+      bytes = await _processingService.applyTransform(
+        bytes,
+        scale: state.scale,
+        translation: state.translation,
+        targetRatio: null,
+      );
     }
 
     final filename =
@@ -250,15 +236,6 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
   Future<Uint8List> _readImageBytes(String path) async {
     final file = File(path);
     return await file.readAsBytes();
-  }
-
-  /// 包装 `img.decodeImage`，对非法字节（mock/损坏文件）返回 null 而不是抛异常。
-  img.Image? _safeDecodeImage(Uint8List bytes) {
-    try {
-      return img.decodeImage(bytes);
-    } catch (_) {
-      return null;
-    }
   }
 
   @override
