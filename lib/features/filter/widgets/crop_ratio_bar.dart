@@ -110,10 +110,6 @@ class _RatioChip extends StatelessWidget {
               ? AppColors.primary
               : AppColors.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(AppRadii.full),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.outlineVariant,
-            width: 1,
-          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

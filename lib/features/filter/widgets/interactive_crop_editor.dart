@@ -100,32 +100,40 @@ class _InteractiveCropEditorState extends State<InteractiveCropEditor> {
   @override
   Widget build(BuildContext context) {
     final ratio = widget.cropRatio.ratio;
-    return ClipRect(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          InteractiveViewer(
-            transformationController: _ctrl,
-            minScale: _minScale,
-            maxScale: _maxScale,
-            onInteractionEnd: (_) => _onInteractionEnd(),
-            child: Center(
-              child: widget.previewBytes != null
-                  ? Image.memory(widget.previewBytes!, fit: BoxFit.cover)
-                  : (widget.imagePath != null
-                      ? Image.file(File(widget.imagePath!), fit: BoxFit.cover)
-                      : const SizedBox.shrink()),
-            ),
-          ),
-          if (ratio != null)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _CropFramePainter(ratio: ratio),
-                ),
+    // RepaintBoundary 把 InteractiveViewer 的重绘隔离在自身图层内，
+    // 避免手势期间每一帧都向上冒泡到父级 Stack，降低闪帧概率。
+    return RepaintBoundary(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InteractiveViewer(
+              transformationController: _ctrl,
+              minScale: _minScale,
+              maxScale: _maxScale,
+              // 允许图片拖出 viewport 边界（否则一旦图片某条边碰到裁切框边就拖不动）
+              boundaryMargin: const EdgeInsets.all(double.infinity),
+              onInteractionEnd: (_) => _onInteractionEnd(),
+              child: SizedBox.expand(
+                child: widget.previewBytes != null
+                    ? Image.memory(widget.previewBytes!,
+                        fit: BoxFit.cover, gaplessPlayback: true)
+                    : (widget.imagePath != null
+                        ? Image.file(File(widget.imagePath!),
+                            fit: BoxFit.cover, gaplessPlayback: true)
+                        : const SizedBox.shrink()),
               ),
             ),
-        ],
+            if (ratio != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _CropFramePainter(ratio: ratio),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

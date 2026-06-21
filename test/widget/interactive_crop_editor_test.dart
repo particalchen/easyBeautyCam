@@ -145,4 +145,62 @@ void main() {
     expect(actualTx, closeTo(75.0, 0.1),
         reason: '_syncFromProps 应该把 translation 归一化值乘以半尺寸');
   });
+
+  testWidgets('InteractiveViewer 允许子节点超出 viewport 拖动 (boundaryMargin=∞)',
+      (tester) async {
+    await tester.pumpWidget(_wrap(InteractiveCropEditor(
+      previewBytes: _kTinyPng,
+      cropRatio: CropRatio.ratio_1_1,
+      scale: 1.0,
+      translation: Offset.zero,
+      onTransformChanged: (_, __) {},
+    )));
+    await tester.pump();
+
+    final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    expect(viewer.boundaryMargin, const EdgeInsets.all(double.infinity),
+        reason: 'boundaryMargin 必须为无限大，否则图片拖到裁切框边缘后就卡住');
+  });
+
+  testWidgets('InteractiveCropEditor Image 使用 gaplessPlayback 避免闪帧',
+      (tester) async {
+    await tester.pumpWidget(_wrap(InteractiveCropEditor(
+      previewBytes: _kTinyPng,
+      cropRatio: CropRatio.original,
+      scale: 1.0,
+      translation: Offset.zero,
+      onTransformChanged: (_, __) {},
+    )));
+    await tester.pump();
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.gaplessPlayback, isTrue,
+        reason: 'Image 必须开启 gaplessPlayback，否则切换 previewBytes 时会闪一帧空白');
+  });
+
+  testWidgets('InteractiveCropEditor 切换 previewBytes 不报错 (gaplessPlayback 路径)',
+      (tester) async {
+    // 第一次：null bytes + imagePath 兜底
+    await tester.pumpWidget(_wrap(InteractiveCropEditor(
+      previewBytes: null,
+      imagePath: null,
+      cropRatio: CropRatio.original,
+      scale: 1.0,
+      translation: Offset.zero,
+      onTransformChanged: (_, __) {},
+    )));
+    await tester.pump();
+    // 第二次：换成真实 bytes
+    await tester.pumpWidget(_wrap(InteractiveCropEditor(
+      previewBytes: _kTinyPng,
+      imagePath: null,
+      cropRatio: CropRatio.original,
+      scale: 1.0,
+      translation: Offset.zero,
+      onTransformChanged: (_, __) {},
+    )));
+    await tester.pump();
+    // 不应抛任何异常
+    expect(tester.takeException(), isNull);
+  });
 }
