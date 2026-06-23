@@ -21,6 +21,7 @@
 
 ### Added
 - **相机取景页横屏旋转**：横屏握持时 layout 不重排版，整个 UI 作为一个整体旋转 90°（AppBar + 姿势叠加 + 底部控制栏 + 姿势缩略图条）。`RotatedBox` + `LayoutBuilder` swap 宽高让 portrait Stack 子节点在 landscape 屏幕下按 portrait 形状布局；AppBar 从 `Scaffold.appBar` 重构为 body 内的 Stack overlay 跟着一起转；`CameraService.setOrientationFromDevice(Orientation)` 调 `lockCaptureOrientation` 让相机 sensor 跟 UI 方向一致；`WidgetsBindingObserver.didChangeMetrics` 监听设备方向变化自动同步 sensor。范围**只**限相机取景页，编辑页 / 相册 / 菜单不参与。
+- **人脸识别美颜**：编辑页用 ML Kit（`google_mlkit_face_detection` 0.13.2 + `google_mlkit_commons` 0.11.0）静态图检测人脸；`ImageProcessingService.applyBeauty` 新增 `img.Image? mask` 参数，`mask==null` 跳过美颜（原图返回，per spec 默认），有 mask 时只在人脸区域（mask>0）做磨皮和美白，眼唇被排除（mask=0）；`FaceDetectionService` 按 `imagePath` 缓存（`Map<String, List<FaceContours>>`），滑杆拖动不重检测；`FaceMaskBuilder` 把轮廓转 1-channel mask（`fillPolygon` 整脸=255 → `fillPolygon` 眼唇=0 → 高斯羽化 radius=8）；`FilterViewModel._runProcess` 流水线串接 `applyFilter → detect(缓存命中) → buildMask → applyBeauty(with mask) → normalizeBrightness`，`FilterViewModelState` 新增 `faceCount` / `faceDetectionFailed` 字段；`BeautySlider` 顶部新增「未检测到人脸 / 已检测 N 张人脸」提示行（橙色 ⚠️ / 绿色 ✓）；l10n 新增 `beautyNoFaceDetected` / `beautyFaceDetected` 两个 key（zh + en，`AppColors` 新增 `warning` / `success`）。范围**只**限编辑页静态图，**不**做实时视频美颜，**不**做瘦脸。顺带修复 `applyBeauty` 3 个 pre-existing bug（`orig` 从空白 result 读 / `gaussianBlur` 原地污染 / `smooth=0` 分支没复制 orig）。
 
 ### Changed
 - **焦段按钮文字**：统一为 "Nx" 格式（`0.5x` / `1x` / `2x` / `3x`），去掉原来的 `.5` / `2` / `3` 不一致写法
