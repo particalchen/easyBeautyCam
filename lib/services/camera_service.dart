@@ -1,4 +1,5 @@
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:flutter/widgets.dart' show Offset, Orientation;
 
@@ -112,11 +113,8 @@ class CameraService {
   Future<void> setOrientationFromDevice(Orientation orientation) async {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-    final deviceOrientation = orientation == Orientation.portrait
-        ? DeviceOrientation.portraitUp
-        : DeviceOrientation.landscapeLeft;
     try {
-      await c.lockCaptureOrientation(deviceOrientation);
+      await c.lockCaptureOrientation(mapOrientationToDeviceOrientation(orientation));
     } catch (_) {
       // 老版本 camera 包 / 模拟器 / 不支持的设备静默跳过
     }
@@ -125,4 +123,17 @@ class CameraService {
   void dispose() {
     _controller?.dispose();
   }
+}
+
+/// 2-value Orientation → DeviceOrientation 映射
+///
+/// 测试用：纯函数，无副作用。`lockCaptureOrientation` 接受 4-value
+/// `DeviceOrientation`，但本应用只区分 portrait/landscape，所以
+/// 两种输入对应两个最常见的 `DeviceOrientation` 值。
+@visibleForTesting
+DeviceOrientation mapOrientationToDeviceOrientation(Orientation orientation) {
+  return switch (orientation) {
+    Orientation.portrait => DeviceOrientation.portraitUp,
+    Orientation.landscape => DeviceOrientation.landscapeLeft,
+  };
 }
