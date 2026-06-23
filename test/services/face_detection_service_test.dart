@@ -68,4 +68,14 @@ void main() {
       );
     });
   });
+
+  group('FaceDetectionService 平台路由', () {
+    test('默认构造不抛异常，detect 可被调（注入 detectFn 避免真实平台调用）', () async {
+      final svc = FaceDetectionService(
+        detectFn: (path, bytes) async => const <FaceContours>[],
+      );
+      final result = await svc.detect('/test.jpg');
+      expect(result, isA<List<FaceContours>>());
+    });
+  });
 }

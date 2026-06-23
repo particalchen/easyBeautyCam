@@ -1,9 +1,11 @@
+import 'dart:io' show Platform;
 import 'dart:math' show Point;
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Size;
 
-import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+
+import 'face_detection/ios_face_detector.dart';
 
 /// 一个人脸的轮廓点集（不依赖 ML Kit 的 Face 类）
 ///
@@ -28,35 +30,64 @@ class FaceContours {
 
 /// 底层人脸检测函数签名：path + bytes → FaceContours 列表
 ///
-/// 生产实现是 ML Kit；测试里直接传 fake。
+/// 生产实现：iOS → Apple Vision（via `IOSFaceDetector`），Android → ML Kit。
+/// 测试里直接传 fake。
 typedef FaceDetectFn = Future<List<FaceContours>> Function(
   String imagePath,
   Uint8List? bytes,
 );
 
-/// ML Kit 人脸检测服务（静态图）
+/// 人脸检测服务（静态图）
 ///
 /// 缓存策略：key = imagePath（每张照片唯一）；ViewModel 切照片时调
 /// [clearCache] 释放内存。缓存上限不做 LRU（照片编辑场景，10 张以内够用）。
 ///
 /// 构造方式：
-/// - `FaceDetectionService()` —— 生产模式，自带 ML Kit detector
+/// - `FaceDetectionService()` —— 生产模式，根据平台路由（iOS → Vision，Android → ML Kit）
 /// - `FaceDetectionService(detectFn: ...)` —— 测试模式，注入 fake
 class FaceDetectionService {
-  FaceDetectFn? _detect;
+  final FaceDetectFn _detect;
   final Map<String, List<FaceContours>> _cache = {};
-  FaceDetector? _defaultDetector;
+  static FaceDetector? _mlKitDetectorInstance;
 
-  FaceDetectionService({FaceDetectFn? detectFn}) {
-    if (detectFn != null) {
-      _detect = detectFn;
-    } else {
-      _initDefaultDetector();
+  FaceDetectionService({FaceDetectFn? detectFn})
+      : _detect = detectFn ?? _platformRouterDetector();
+
+  Future<List<FaceContours>> detect(String imagePath, {Uint8List? bytes}) async {
+    final cached = _cache[imagePath];
+    if (cached != null) return cached;
+    final result = await _detect(imagePath, bytes);
+    _cache[imagePath] = result;
+    return result;
+  }
+
+  void clearCache() => _cache.clear();
+
+  /// 释放 ML Kit detector 资源（仅当用了 Android 默认 detector）
+  void dispose() {
+    if (_mlKitDetectorInstance != null) {
+      _mlKitDetectorInstance!.close();
+      _mlKitDetectorInstance = null;
     }
   }
 
-  void _initDefaultDetector() {
-    final detector = FaceDetector(
+  // ---- 内部：平台路由 ----
+
+  /// 默认 detector：根据平台路由（iOS → Vision，Android → ML Kit）
+  static FaceDetectFn _platformRouterDetector() {
+    // iOS Simulator 和 device 都用 Apple Vision
+    if (Platform.isIOS) {
+      final detector = IOSFaceDetector();
+      return detector.detect;
+    }
+    // Android 用 ML Kit（保持原行为）
+    return _mlKitDetector();
+  }
+
+  // ---- 内部：ML Kit detector（Android only）----
+
+  static FaceDetectFn _mlKitDetector() {
+    _mlKitDetectorInstance ??= FaceDetector(
       options: FaceDetectorOptions(
         enableContours: true,
         enableLandmarks: false,
@@ -66,29 +97,7 @@ class FaceDetectionService {
         minFaceSize: 0.15,
       ),
     );
-    _defaultDetector = detector;
-    _detect = _makeMlKitDetector(detector);
-  }
-
-  Future<List<FaceContours>> detect(String imagePath, {Uint8List? bytes}) async {
-    final cached = _cache[imagePath];
-    if (cached != null) return cached;
-    final result = await _detect!(imagePath, bytes);
-    _cache[imagePath] = result;
-    return result;
-  }
-
-  void clearCache() => _cache.clear();
-
-  /// 释放 ML Kit detector 资源（仅当用了默认 detector）
-  void dispose() {
-    _defaultDetector?.close();
-    _defaultDetector = null;
-  }
-
-  // ---- 内部：ML Kit 默认 detector ----
-
-  static FaceDetectFn _makeMlKitDetector(FaceDetector detector) {
+    final detector = _mlKitDetectorInstance!;
     return (String path, Uint8List? bytes) async {
       final InputImage input;
       if (bytes != null) {
