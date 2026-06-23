@@ -9,6 +9,8 @@
 
 ### Fixed
 - **拍后编辑**：图片预览区加 `ConstrainedBox(maxHeight: 屏幕高 × 0.45)` 限高，竖向 portrait 照片不再把 BottomSheet 撑爆（之前会 `RenderFlex overflowed by 144 pixels`）
+- **相机 AppBar**：标题用 `Stack(alignment: center)` 真正居中（原 4 子项 `spaceBetween` 视觉偏左）；相册按钮去掉 1.5pt 圆形描边 + 去掉 Padding/SizedBox 贴右边；`AppCircleIconButton` 加 `bordered` / `iconOpacity` 参数，`CameraSwitchButton` 走 `iconOpacity: 0.75`（次要操作不抢快门按钮的戏）
+- **美颜（iOS Vision）**：Vision 插件之前没传 `CGImagePropertyOrientation`，iOS 相机拍出来的 JPEG EXIF = `.right` (6) 时 Vision 处理 raw landscape 像素，landmark 坐标用在了 Dart 端已经烘焙 EXIF 旋转的 portrait 图像上 → mask 画在错位置（用户反馈"美白只在右上角变白"）。修法：读 `image.imageOrientation` → 映射到 `CGImagePropertyOrientation` → 传给 `VNImageRequestHandler(cgImage:orientation:)` → `polygon()` 用 `displaySize` 算出的显示宽高反归一化，跟 Dart 端 `image.width/height` 匹配
 - **拍后编辑**：去掉图片预览的黑色兜底背景，竖向照片左右留空区透出 BottomSheet 暖白底
 - **滤镜选择**：选中边框只圈住 50×50 颜色按钮，不再撑满整个 carousel 高度
 - **相机偏暗**：相机端在 `initialize` / `switchCamera` 后调 `setExposureOffset(+1.0)`，用 try/catch 兜底（部分 Android/模拟器可能不支持）

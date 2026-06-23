@@ -6,6 +6,7 @@ import 'app_circle_icon_button.dart';
 ///
 /// 视觉规范与相册按钮统一（半透黑底 + 白边 + 线性图标），
 /// 直径走 [AppSpacing.cameraButtonSize]（56pt），固定 `Icons.cameraswitch` 图标。
+/// 图标前景透明度 75%——次要操作，不抢快门按钮的戏。
 class CameraSwitchButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
@@ -17,6 +18,7 @@ class CameraSwitchButton extends StatelessWidget {
       icon: Icons.cameraswitch,
       onPressed: onPressed,
       size: AppSpacing.cameraButtonSize,
+      iconOpacity: 0.75,
     );
   }
 }

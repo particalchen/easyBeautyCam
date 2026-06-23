@@ -70,5 +70,24 @@ void main() {
       await tester.tap(find.byType(CameraSwitchButton));
       await tester.pump();
     });
+
+    testWidgets('CameraSwitchButton 内嵌 AppCircleIconButton 走 iconOpacity: 0.75 '
+        '（次要操作不抢戏）', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: CameraSwitchButton(onPressed: () {}),
+            ),
+          ),
+        ),
+      );
+
+      final inner = tester.widget<AppCircleIconButton>(find.descendant(
+        of: find.byType(CameraSwitchButton),
+        matching: find.byType(AppCircleIconButton),
+      ));
+      expect(inner.iconOpacity, 0.75);
+    });
   });
 }

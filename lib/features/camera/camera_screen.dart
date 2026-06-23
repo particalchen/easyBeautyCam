@@ -163,33 +163,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         child: Container(
           color: AppColors.scrimLight,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.menu, size: 24),
-                color: AppColors.onPrimary,
-                tooltip: l10n.cameraMenu,
-                onPressed: _openMenu,
-              ),
-              Text(
-                l10n.appTitle,
-                style: const TextStyle(
-                  color: AppColors.onPrimary,
-                  fontWeight: FontWeight.w600,
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 标题居中
+                Text(
+                  l10n.appTitle,
+                  style: const TextStyle(
+                    color: AppColors.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: 4),
-                child: AppCircleIconButton(
-                  icon: Icons.photo_library_outlined,
-                  onPressed: () => context.push('/album'),
-                  size: 36,
-                  iconSize: 20,
+                // 左：菜单按钮
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.menu, size: 24),
+                    color: AppColors.onPrimary,
+                    tooltip: l10n.cameraMenu,
+                    onPressed: _openMenu,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-            ],
+                // 右：相册按钮（无描边 + 靠右）
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: AppCircleIconButton(
+                    icon: Icons.photo_library_outlined,
+                    onPressed: () => context.push('/album'),
+                    size: 36,
+                    iconSize: 20,
+                    bordered: false,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
