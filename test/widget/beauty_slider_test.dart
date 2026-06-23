@@ -10,6 +10,8 @@ import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/beauty_slider.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
+import 'package:easy_beauty_cam/services/face_detection_service.dart';
+import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
@@ -25,7 +27,7 @@ class _StubViewModel extends FilterViewModel {
     this.onWhiten,
     this.onSlim,
   })  : _state = state,
-        super(_NoopService(), _NoopWriter(), _NoopRepo());
+        super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder());
 
   @override
   FilterViewModelState get state => _state;
@@ -67,6 +69,12 @@ class _NoopRepo implements AppPhotoRepository {
   @override
   Future<void> delete(List<String> paths) async {}
 }
+
+class _NoopFaceDetector extends FaceDetectionService {
+  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
+}
+
+class _NoopMaskBuilder extends FaceMaskBuilder {}
 
 ProviderScope buildScope({
   double smooth = 30,

@@ -12,12 +12,14 @@ import 'package:easy_beauty_cam/features/filter/filter_panel.dart';
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
+import 'package:easy_beauty_cam/services/face_detection_service.dart';
+import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
 class _StubRepo extends FilterViewModel {
   _StubRepo({String? imagePath, Uint8List? previewBytes})
-      : super(_NoopService(), _NoopWriter(), _NoopRepo()) {
+      : super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder()) {
     if (imagePath != null) {
       state = state.copyWith(imagePath: imagePath, previewBytes: previewBytes);
     }
@@ -77,6 +79,12 @@ class _NoopRepo implements AppPhotoRepository {
   @override
   Future<void> delete(List<String> paths) async {}
 }
+
+class _NoopFaceDetector extends FaceDetectionService {
+  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
+}
+
+class _NoopMaskBuilder extends FaceMaskBuilder {}
 
 Future<void> pumpPanel(
   WidgetTester tester, {

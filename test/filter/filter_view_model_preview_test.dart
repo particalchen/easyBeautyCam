@@ -8,6 +8,8 @@ import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
+import 'package:easy_beauty_cam/services/face_detection_service.dart';
+import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
@@ -15,9 +17,16 @@ import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 class _CapturingProcessingService extends ImageProcessingService {
   int callCount = 0;
   int applyTransformCallCount = 0;
+  int applyFilterCallCount = 0;
+  int applyBeautyCallCount = 0;
+  int normalizeBrightnessCallCount = 0;
   double? lastScale;
   Offset? lastTranslation;
   double? lastTargetRatio;
+  double? lastSmooth;
+  double? lastWhiten;
+  double? lastSlim;
+  img.Image? lastMask;
   // 用真实可解码的 1x1 PNG（每次 append 计数器字节来区分调用），
   // 让 view model 里的 `img.decodeImage(processed)` 走通。
   final Uint8List _basePng = Uint8List.fromList(img.encodePng(
@@ -40,6 +49,35 @@ class _CapturingProcessingService extends ImageProcessingService {
     // 复用基础 PNG 字节 + 在尾部追加计数器字节，让每个 call 返回值仍然合法 PNG 头
     _bytes = Uint8List.fromList([..._basePng, callCount & 0xff]);
     return _bytes;
+  }
+
+  @override
+  Future<Uint8List> applyFilter(Uint8List imageBytes, FilterType filter) async {
+    applyFilterCallCount++;
+    // 返回合法 1x1 PNG（无 counter 后缀），保证后续 decodeImage 走通
+    return _basePng;
+  }
+
+  @override
+  Future<Uint8List> applyBeauty(
+    Uint8List imageBytes, {
+    double smooth = 0,
+    double whiten = 0,
+    double slim = 0,
+    img.Image? mask,
+  }) async {
+    applyBeautyCallCount++;
+    lastSmooth = smooth;
+    lastWhiten = whiten;
+    lastSlim = slim;
+    lastMask = mask;
+    return _basePng;
+  }
+
+  @override
+  Future<Uint8List> normalizeBrightness(Uint8List imageBytes) async {
+    normalizeBrightnessCallCount++;
+    return _basePng;
   }
 
   @override
@@ -74,6 +112,46 @@ class _NoopRepo implements AppPhotoRepository {
   Future<void> delete(List<String> paths) async {}
 }
 
+// 记录 detect 调用次数 + 返回固定 1 张脸
+// 复刻基类缓存机制：相同 imagePath 第二次调 detect 不算"真正"调用（detectCallCount 不增长）。
+class _StubFaceDetector extends FaceDetectionService {
+  int detectCallCount = 0;
+  final List<FaceContours> cannedResult;
+  final Set<String> _seenPaths = {};
+
+  _StubFaceDetector({this.cannedResult = const []})
+      : super(detectFn: (path, bytes) async => cannedResult);
+
+  @override
+  Future<List<FaceContours>> detect(String imagePath, {Uint8List? bytes}) async {
+    if (_seenPaths.add(imagePath)) {
+      // 新路径 → 真正"打"到 detectFn
+      detectCallCount++;
+    }
+    // 缓存命中行为：与基类一致（同 path 返回相同结果）
+    return cannedResult;
+  }
+}
+
+class _StubMaskBuilder extends FaceMaskBuilder {
+  int buildCallCount = 0;
+  img.Image? cannedMask;
+
+  _StubMaskBuilder({this.cannedMask});
+
+  @override
+  img.Image buildMask({
+    required int width,
+    required int height,
+    required List<FaceContours> faces,
+    int featherRadius = 8,
+    bool excludeEyesLips = true,
+  }) {
+    buildCallCount++;
+    return cannedMask ?? img.Image(width: 1, height: 1, numChannels: 1);
+  }
+}
+
 void main() {
   group('FilterViewModel 实时预览', () {
     late _CapturingProcessingService svc;
@@ -92,6 +170,8 @@ void main() {
           imageProcessingServiceProvider.overrideWithValue(svc),
           photoAlbumWriterProvider.overrideWithValue(_NoopWriter()),
           appPhotoRepositoryProvider.overrideWithValue(_NoopRepo()),
+          faceDetectionServiceProvider.overrideWithValue(_StubFaceDetector()),
+          faceMaskBuilderProvider.overrideWithValue(_StubMaskBuilder()),
         ],
       );
     });
@@ -110,13 +190,13 @@ void main() {
       expect(state.previewBytes, isNotNull);
       expect(state.previewBytes!.isNotEmpty, isTrue);
       expect(state.isPreviewProcessing, isFalse);
-      expect(svc.callCount, greaterThanOrEqualTo(1));
+      expect(svc.applyFilterCallCount, greaterThanOrEqualTo(1));
     });
 
     test('selectFilter 触发新一次 processImage', () async {
       container.read(filterViewModelProvider.notifier).setImage(tempFile.path);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      final c1 = svc.callCount;
+      final c1 = svc.applyFilterCallCount;
 
       container
           .read(filterViewModelProvider.notifier)
@@ -124,7 +204,7 @@ void main() {
       // 200ms debounce 后才执行
       await Future<void>.delayed(const Duration(milliseconds: 280));
 
-      expect(svc.callCount, greaterThan(c1));
+      expect(svc.applyFilterCallCount, greaterThan(c1));
     });
 
     test('saveProcessedImage 优先复用 previewBytes，不再 process', () async {
@@ -136,7 +216,7 @@ void main() {
           .read(filterViewModelProvider.notifier)
           .saveProcessedImage();
 
-      // 不再调一次 process
+      // 不再调一次 process（save 时复用 previewBytes）
       expect(svc.callCount, c1);
     });
 
@@ -149,7 +229,7 @@ void main() {
     test('setTransform 更新 scale/translation 并触发处理', () async {
       container.read(filterViewModelProvider.notifier).setImage(tempFile.path);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      final c1 = svc.callCount;
+      final c1 = svc.applyFilterCallCount;
 
       container.read(filterViewModelProvider.notifier).setTransform(
             scale: 2.0,
@@ -160,7 +240,7 @@ void main() {
       final state = container.read(filterViewModelProvider);
       expect(state.scale, 2.0);
       expect(state.translation, const Offset(10, 20));
-      expect(svc.callCount, greaterThan(c1), reason: 'setTransform 应触发重新处理');
+      expect(svc.applyFilterCallCount, greaterThan(c1), reason: 'setTransform 应触发重新处理');
     });
 
     test('resetTransform 把 scale/translation 拉回默认', () async {
@@ -189,14 +269,14 @@ void main() {
       notifier.setCropRatio(CropRatio.ratio_1_1);
       notifier.setImage(tempFile.path);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      final c1 = svc.callCount;
+      final c1 = svc.applyFilterCallCount;
       final at1 = svc.applyTransformCallCount;
 
       notifier.setTransform(scale: 2.0, translation: const Offset(0.1, 0.2));
       await Future<void>.delayed(const Duration(milliseconds: 280));
 
       // setTransform 仍触发 _runProcess（重跑滤镜+美颜）
-      expect(svc.callCount, greaterThan(c1), reason: 'setTransform 应触发 _runProcess');
+      expect(svc.applyFilterCallCount, greaterThan(c1), reason: 'setTransform 应触发 _runProcess');
       // 但 _runProcess 不再调 applyTransform（裁切只在 save 时）
       expect(svc.applyTransformCallCount, at1,
           reason: '预览不调 applyTransform');
@@ -272,7 +352,7 @@ void main() {
       final processing = _CapturingProcessingService();
       final writer = _NoopWriter();
       final repo = _NoopRepo();
-      final vm = FilterViewModel(processing, writer, repo);
+      final vm = FilterViewModel(processing, writer, repo, _StubFaceDetector(), _StubMaskBuilder());
       vm.setImage(tempFile.path);
       await Future.delayed(const Duration(milliseconds: 300));
 
@@ -324,6 +404,131 @@ void main() {
 
       realContainer.dispose();
       File(testPath).deleteSync();
+    });
+  });
+
+  group('FilterViewModel 人脸检测 + mask', () {
+    test('setImage 后 _runProcess 调 detect 1 次 + buildMask 1 次', () async {
+      final tempFile = await File('${Directory.systemTemp.path}/face_${DateTime.now().microsecondsSinceEpoch}.jpg').create();
+      await tempFile.writeAsBytes([0xFF, 0xD8, 0xFF]);
+
+      final detector = _StubFaceDetector(cannedResult: [
+        FaceContours(face: const [Offset(10, 10), Offset(50, 10), Offset(30, 50)]),
+      ]);
+      final builder = _StubMaskBuilder(cannedMask: img.Image(width: 100, height: 100, numChannels: 1));
+      final c = ProviderContainer(
+        overrides: [
+          imageProcessingServiceProvider.overrideWithValue(_CapturingProcessingService()),
+          photoAlbumWriterProvider.overrideWithValue(_NoopWriter()),
+          appPhotoRepositoryProvider.overrideWithValue(_NoopRepo()),
+          faceDetectionServiceProvider.overrideWithValue(detector),
+          faceMaskBuilderProvider.overrideWithValue(builder),
+        ],
+      );
+
+      c.read(filterViewModelProvider.notifier).setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(detector.detectCallCount, 1, reason: 'setImage 立即 detect 一次');
+      expect(builder.buildCallCount, 1, reason: 'buildMask 在 detect 成功后被调');
+      expect(c.read(filterViewModelProvider).faceCount, 1, reason: 'state.faceCount=1');
+
+      c.dispose();
+      await tempFile.delete();
+    });
+
+    test('detect 返回空 → faceCount=0, buildMask 不被调', () async {
+      final tempFile = await File('${Directory.systemTemp.path}/noface_${DateTime.now().microsecondsSinceEpoch}.jpg').create();
+      await tempFile.writeAsBytes([0xFF, 0xD8, 0xFF]);
+
+      final detector = _StubFaceDetector(cannedResult: const []);
+      final builder = _StubMaskBuilder();
+      final c = ProviderContainer(
+        overrides: [
+          imageProcessingServiceProvider.overrideWithValue(_CapturingProcessingService()),
+          photoAlbumWriterProvider.overrideWithValue(_NoopWriter()),
+          appPhotoRepositoryProvider.overrideWithValue(_NoopRepo()),
+          faceDetectionServiceProvider.overrideWithValue(detector),
+          faceMaskBuilderProvider.overrideWithValue(builder),
+        ],
+      );
+
+      c.read(filterViewModelProvider.notifier).setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final state = c.read(filterViewModelProvider);
+      expect(state.faceCount, 0);
+      expect(builder.buildCallCount, 0, reason: '无脸时不应调 buildMask');
+
+      c.dispose();
+      await tempFile.delete();
+    });
+
+    test('缓存命中：连续调 setSmooth 不重新 detect', () async {
+      final tempFile = await File('${Directory.systemTemp.path}/cached_${DateTime.now().microsecondsSinceEpoch}.jpg').create();
+      await tempFile.writeAsBytes([0xFF, 0xD8, 0xFF]);
+
+      final detector = _StubFaceDetector(cannedResult: [
+        FaceContours(face: const [Offset(10, 10), Offset(50, 10), Offset(30, 50)]),
+      ]);
+      final builder = _StubMaskBuilder(cannedMask: img.Image(width: 100, height: 100, numChannels: 1));
+      final c = ProviderContainer(
+        overrides: [
+          imageProcessingServiceProvider.overrideWithValue(_CapturingProcessingService()),
+          photoAlbumWriterProvider.overrideWithValue(_NoopWriter()),
+          appPhotoRepositoryProvider.overrideWithValue(_NoopRepo()),
+          faceDetectionServiceProvider.overrideWithValue(detector),
+          faceMaskBuilderProvider.overrideWithValue(builder),
+        ],
+      );
+
+      final notifier = c.read(filterViewModelProvider.notifier);
+      notifier.setImage(tempFile.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final initialDetect = detector.detectCallCount;
+      final initialBuild = builder.buildCallCount;
+
+      // 改 smooth 滑杆（200ms debounce）→ 应当复用 detect 缓存，但 buildMask 仍跑
+      notifier.setSmooth(50);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(detector.detectCallCount, initialDetect, reason: '改 smooth 不重新 detect');
+      expect(builder.buildCallCount, initialBuild + 1,
+          reason: '改 smooth 后 buildMask 仍跑一次（_runProcess 触发）');
+
+      c.dispose();
+      await tempFile.delete();
+    });
+
+    test('setImage 切到新 path → 缓存被清空，detect 重跑', () async {
+      final tempFile1 = await File('${Directory.systemTemp.path}/a_${DateTime.now().microsecondsSinceEpoch}.jpg').create();
+      final tempFile2 = await File('${Directory.systemTemp.path}/b_${DateTime.now().microsecondsSinceEpoch}.jpg').create();
+      await tempFile1.writeAsBytes([0xFF, 0xD8, 0xFF]);
+      await tempFile2.writeAsBytes([0xFF, 0xD8, 0xFF]);
+
+      final detector = _StubFaceDetector(cannedResult: const []);
+      final c = ProviderContainer(
+        overrides: [
+          imageProcessingServiceProvider.overrideWithValue(_CapturingProcessingService()),
+          photoAlbumWriterProvider.overrideWithValue(_NoopWriter()),
+          appPhotoRepositoryProvider.overrideWithValue(_NoopRepo()),
+          faceDetectionServiceProvider.overrideWithValue(detector),
+          faceMaskBuilderProvider.overrideWithValue(_StubMaskBuilder()),
+        ],
+      );
+      final notifier = c.read(filterViewModelProvider.notifier);
+
+      notifier.setImage(tempFile1.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(detector.detectCallCount, 1);
+
+      notifier.setImage(tempFile2.path);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(detector.detectCallCount, 2, reason: '切到新照片应 detect 第二次');
+
+      c.dispose();
+      await tempFile1.delete();
+      await tempFile2.delete();
     });
   });
 }

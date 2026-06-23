@@ -10,12 +10,14 @@ import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/crop_ratio_bar.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
+import 'package:easy_beauty_cam/services/face_detection_service.dart';
+import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
 class _Stub extends FilterViewModel {
   _Stub(FilterViewModelState s)
-      : super(_NoopService(), _NoopWriter(), _NoopRepo()) {
+      : super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder()) {
     state = s;
   }
 }
@@ -53,6 +55,12 @@ class _NoopRepo implements AppPhotoRepository {
   @override
   Future<void> delete(List<String> paths) async {}
 }
+
+class _NoopFaceDetector extends FaceDetectionService {
+  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
+}
+
+class _NoopMaskBuilder extends FaceMaskBuilder {}
 
 Future<void> _pump(WidgetTester tester, FilterViewModel stub) async {
   await tester.pumpWidget(ProviderScope(
