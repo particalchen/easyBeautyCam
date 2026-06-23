@@ -29,6 +29,8 @@ class BeautySlider extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _buildFaceHint(l10n, state),
+          const SizedBox(height: 4),
           _buildSlider(
             context,
             l10n.beautySmooth,
@@ -51,6 +53,45 @@ class BeautySlider extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFaceHint(AppLocalizations l10n, FilterViewModelState state) {
+    if (state.faceDetectionFailed || state.faceCount == 0) {
+      return Row(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.warning,
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            l10n.beautyNoFaceDetected,
+            style: AppTypography.bodyMd.copyWith(
+              color: AppColors.warning,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        const Icon(
+          Icons.check_circle,
+          color: AppColors.success,
+          size: 14,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          l10n.beautyFaceDetected(state.faceCount),
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.success,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 

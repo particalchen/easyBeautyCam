@@ -80,6 +80,8 @@ ProviderScope buildScope({
   double smooth = 30,
   double whiten = 20,
   double slim = 0,
+  int faceCount = 0,
+  bool faceDetectionFailed = false,
   void Function(double)? onSmooth,
   void Function(double)? onWhiten,
   void Function(double)? onSlim,
@@ -92,6 +94,8 @@ ProviderScope buildScope({
             smooth: smooth,
             whiten: whiten,
             slim: slim,
+            faceCount: faceCount,
+            faceDetectionFailed: faceDetectionFailed,
           ),
           onSmooth: onSmooth,
           onWhiten: onWhiten,
@@ -139,6 +143,23 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('75'), findsOneWidget);
+    });
+  });
+
+  group('BeautySlider 人脸检测提示', () {
+    testWidgets('faceCount=0 显示「未检测到人脸」', (tester) async {
+      await tester.pumpWidget(buildScope(faceCount: 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('未检测到人脸，美颜未生效'), findsOneWidget);
+    });
+
+    testWidgets('faceCount=2 显示「已检测 2 张人脸」', (tester) async {
+      await tester.pumpWidget(buildScope(faceCount: 2));
+      await tester.pumpAndSettle();
+
+      expect(find.text('已检测 2 张人脸'), findsOneWidget);
+      expect(find.text('未检测到人脸，美颜未生效'), findsNothing);
     });
   });
 }

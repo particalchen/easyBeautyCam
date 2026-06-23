@@ -27,5 +27,20 @@
   "menuTitle": "Menu",
   "menuPoseLibrary": "Pose Library",
   "menuSettings": "Settings",
-  "menuAbout": "About"
+  "menuAbout": "About",
+
+  "beautyNoFaceDetected": "No face detected, beauty is disabled",
+  "@beautyNoFaceDetected": {
+    "description": "Hint shown at top of BeautySlider when no face is detected"
+  },
+
+  "beautyFaceDetected": "Detected {count} face(s)",
+  "@beautyFaceDetected": {
+    "description": "Hint shown at top of BeautySlider when N faces are detected",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -229,6 +229,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关于'**
   String get menuAbout;
+
+  /// BeautySlider 顶部提示：未在照片中检测到人脸时显示
+  ///
+  /// In zh, this message translates to:
+  /// **'未检测到人脸，美颜未生效'**
+  String get beautyNoFaceDetected;
+
+  /// BeautySlider 顶部提示：检测到 N 张人脸时显示
+  ///
+  /// In zh, this message translates to:
+  /// **'已检测 {count} 张人脸'**
+  String beautyFaceDetected(int count);
 }
 
 class _AppLocalizationsDelegate

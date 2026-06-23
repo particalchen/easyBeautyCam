@@ -73,4 +73,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuAbout => 'About';
+
+  @override
+  String get beautyNoFaceDetected => 'No face detected, beauty is disabled';
+
+  @override
+  String beautyFaceDetected(int count) {
+    return 'Detected $count face(s)';
+  }
 }

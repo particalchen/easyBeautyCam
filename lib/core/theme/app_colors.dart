@@ -99,6 +99,11 @@ class AppColors {
   static const Color filterPreviewRixi = Color(0xFFFFF8DC);
   static const Color filterPreviewJiaopian = Color(0xFFD4A574);
 
+  /// 提示色：橙色（人脸未检测到、警告）
+  static const Color warning = Color(0xFFFF9800);
+  /// 成功色：绿色（检测成功）
+  static const Color success = Color(0xFF4CAF50);
+
   // ── 兼容旧名（不推荐新代码使用）─────────────────────────────
   @Deprecated('Use AppColors.poseLine instead')
   static const Color poseLineLegacy = poseLine;
