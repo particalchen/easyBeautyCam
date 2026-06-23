@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 本项目遵守 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased] — 2026-06-20
+## [Unreleased] — 2026-06-23
 
 ### Fixed
 - **拍后编辑**：图片预览区加 `ConstrainedBox(maxHeight: 屏幕高 × 0.45)` 限高，竖向 portrait 照片不再把 BottomSheet 撑爆（之前会 `RenderFlex overflowed by 144 pixels`）
@@ -18,6 +18,9 @@
 - **相册全屏预览**：关闭按钮从默认 IconButton 升级为 48pt 圆形 + 半透明深色底，固定右上角
 - **美颜滑动条**：字号 14→12，track 4→2pt，thumb 半径 14→8，间距 sm→4pt；编辑面板 TabView 高度 200→150、预览区 maxHeight 比例 0.45→0.38
 - **filter/裁切编辑器**：切换比例时图片不再被强制拉伸（applyTransform 改为按比例裁切）；切换比例不再触发预览重裁切（setCropRatio 仅改遮罩）；InteractiveCropEditor 允许 <1x 拉远（minScale=0.5）；图片用 BoxFit.cover 铺满 viewport，触摸热区更大；_syncFromProps 镜像 translation 归一化语义修复 round-trip 跳变
+
+### Added
+- **相机取景页横屏旋转**：横屏握持时 layout 不重排版，整个 UI 作为一个整体旋转 90°（AppBar + 姿势叠加 + 底部控制栏 + 姿势缩略图条）。`RotatedBox` + `LayoutBuilder` swap 宽高让 portrait Stack 子节点在 landscape 屏幕下按 portrait 形状布局；AppBar 从 `Scaffold.appBar` 重构为 body 内的 Stack overlay 跟着一起转；`CameraService.setOrientationFromDevice(Orientation)` 调 `lockCaptureOrientation` 让相机 sensor 跟 UI 方向一致；`WidgetsBindingObserver.didChangeMetrics` 监听设备方向变化自动同步 sensor。范围**只**限相机取景页，编辑页 / 相册 / 菜单不参与。
 
 ### Changed
 - **焦段按钮文字**：统一为 "Nx" 格式（`0.5x` / `1x` / `2x` / `3x`），去掉原来的 `.5` / `2` / `3` 不一致写法
