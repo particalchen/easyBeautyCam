@@ -123,11 +123,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           quarterTurns: quarterTurns,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // swap 宽高：让子节点拿到 portrait 形状的布局空间
-              // （landscape 屏幕下，按 portrait 比例排 Stack 子节点）
+              // RotatedBox 内部已经 swap 了 constraints：
+              //   landscape 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
+              //   portrait 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
+              // 所以这里直接用 constraints 即可，不要再手动 swap，否则会变成横屏形状。
               return SizedBox(
-                width: constraints.maxHeight,
-                height: constraints.maxWidth,
+                key: const ValueKey('cameraContentSizedBox'),
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
                 child: cameraState.isInitialized
                     ? _buildCameraView(cameraState, cameraNotifier, l10n)
                     : _buildLoadingOrAppBarOverlay(l10n),
