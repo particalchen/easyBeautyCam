@@ -161,5 +161,17 @@ void main() {
       expect(find.text('已检测 2 张人脸'), findsOneWidget);
       expect(find.text('未检测到人脸，美颜未生效'), findsNothing);
     });
+
+    testWidgets('faceDetectionFailed=true 显示「未检测到人脸」（即便 faceCount>0）', (tester) async {
+      // ML Kit 抛异常时 faceCount 仍可能 > 0（detect 在拿到结果前失败），
+      // 但 UI 应走 failed 分支而不是 success 分支
+      await tester.pumpWidget(
+        buildScope(faceCount: 2, faceDetectionFailed: true),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('未检测到人脸，美颜未生效'), findsOneWidget);
+      expect(find.text('已检测 2 张人脸'), findsNothing);
+    });
   });
 }
