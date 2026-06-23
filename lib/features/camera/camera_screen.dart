@@ -17,18 +17,14 @@ import 'widgets/camera_controls.dart';
 import '../filter/filter_view_model.dart';
 import '../filter/filter_panel.dart';
 
-/// 相机主屏幕
+/// 相机主屏幕（横屏自动旋转，layout 不变）
 ///
-/// 布局（自底向上）：
-/// 1. 取景框（CameraPreview）—— 占满 + 双指缩放手势
-/// 2. 姿势轮廓叠加（不跟随缩放）
-/// 3. 顶部 AppBar（菜单 / 标题 / 相册）—— 浮于取景框之上，避让刘海
+/// 布局（横屏时整体旋转，layout 仍是 portrait Stack 结构）：
+/// 1. 取景框（CameraPreview）—— 双指缩放 + 点击对焦曝光
+/// 2. 姿势轮廓叠加（不跟随缩放，跟着 RotatedBox 一起转）
+/// 3. 顶部 AppBar overlay（Stack 子节点，跟着转）
 /// 4. 底部姿势缩略图条
-/// 5. 底部相机控制栏（相册/快门/变焦）
-///
-/// 安全区：
-/// - 顶部 SafeArea + 灵动岛 适配由 `AppBar` 自动处理
-/// - 底部 SafeArea 防止 home indicator 遮挡
+/// 5. 底部相机控制栏
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
 
@@ -37,34 +33,27 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen>
-    with SingleTickerProviderStateMixin {
-  /// 姿势缩略图条距底部控制栏的垂直间距
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const double _kPoseStripGap = 32;
-
-  /// 手势缩放基线（onScaleStart 时锁定，避免累计漂移）
   double _gestureBaseZoom = 1.0;
-
-  /// 拍照闪白动画控制器
   late final AnimationController _flashController;
   late final Animation<double> _flashAnimation;
 
   @override
   void initState() {
     super.initState();
-    // 闪白动画：opacity 0→1→0，~150ms 出 + 200ms 收
+    WidgetsBinding.instance.addObserver(this);
     _flashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
     _flashAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)),
         weight: 150,
       ),
       TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)),
         weight: 200,
       ),
     ]).animate(_flashController);
@@ -73,78 +62,138 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _flashController.dispose();
     super.dispose();
   }
 
-  /// 弹出菜单 BottomSheet —— 姿势库 / 设置 / 关于
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // 设备方向 / 尺寸变化时同步相机 sensor
+    _syncSensorOrientation();
+  }
+
+  void _syncSensorOrientation() {
+    final orientation = MediaQuery.of(context).orientation;
+    final cameraService = ref.read(cameraServiceProvider);
+    unawaited(cameraService.setOrientationFromDevice(orientation));
+  }
+
   void _openMenu() {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => AppMenuSheet(
-        onPoseLibrary: () {
-          Navigator.of(sheetContext).pop();
-          // TODO: 跳姿势库（待 P1 阶段）
-        },
-        onSettings: () {
-          Navigator.of(sheetContext).pop();
-          // TODO: 跳设置页（待 P1 阶段）
-        },
-        onAbout: () {
-          Navigator.of(sheetContext).pop();
-          // TODO: 跳关于页（待 P1 阶段）
-        },
+        onPoseLibrary: () { Navigator.of(sheetContext).pop(); },
+        onSettings: () { Navigator.of(sheetContext).pop(); },
+        onAbout: () { Navigator.of(sheetContext).pop(); },
       ),
     );
+  }
+
+  /// 把 2-value MediaQuery.orientation 映射到 RotatedBox.quarterTurns
+  int _orientationToQuarterTurns(Orientation orientation) {
+    // portrait → 0（无视觉变化）
+    // landscape → 1（90° 顺时针，匹配 sensor landscapeLeft）
+    return switch (orientation) {
+      Orientation.portrait => 0,
+      Orientation.landscape => 1,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final orientation = MediaQuery.of(context).orientation;
+    final quarterTurns = _orientationToQuarterTurns(orientation);
     final cameraState = ref.watch(cameraViewModelProvider);
     final cameraNotifier = ref.read(cameraViewModelProvider.notifier);
 
+    // 同步 sensor（initState 后第一次 build 也调一次）
+    _syncSensorOrientation();
+
     return Scaffold(
       backgroundColor: Colors.black,
-      extendBodyBehindAppBar: true, // AppBar 浮于取景框之上
-      appBar: AppBar(
-        backgroundColor: AppColors.scrimLight,
-        foregroundColor: AppColors.onPrimary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, size: 24),
-          tooltip: l10n.cameraMenu,
-          onPressed: _openMenu,
-        ),
-        title: Text(
-          l10n.appTitle,
-          style: const TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: 4),
-            child: AppCircleIconButton(
-              icon: Icons.photo_library_outlined,
-              onPressed: () => context.push('/album'),
-              size: 36,
-              iconSize: 20,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
+      // AppBar 改为 null；自己在 body 内 Stack overlay 渲染，跟着 RotatedBox 转
       body: SafeArea(
-        bottom: false, // 底部控制栏会自己处理 home indicator
-        child: cameraState.isInitialized
-            ? _buildCameraView(cameraState, cameraNotifier)
-            : const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        bottom: false,
+        child: RotatedBox(
+          quarterTurns: quarterTurns,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // swap 宽高：让子节点拿到 portrait 形状的布局空间
+              // （landscape 屏幕下，按 portrait 比例排 Stack 子节点）
+              return SizedBox(
+                width: constraints.maxHeight,
+                height: constraints.maxWidth,
+                child: cameraState.isInitialized
+                    ? _buildCameraView(cameraState, cameraNotifier, l10n)
+                    : _buildLoadingOrAppBarOverlay(l10n),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCameraView(CameraViewModelState state, CameraViewModel notifier) {
+  Widget _buildLoadingOrAppBarOverlay(AppLocalizations l10n) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        // 加载中也显示 AppBar overlay
+        _buildAppBarOverlay(l10n),
+      ],
+    );
+  }
+
+  Widget _buildAppBarOverlay(AppLocalizations l10n) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          color: AppColors.scrimLight,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.menu, size: 24),
+                color: AppColors.onPrimary,
+                tooltip: l10n.cameraMenu,
+                onPressed: _openMenu,
+              ),
+              Text(
+                l10n.appTitle,
+                style: const TextStyle(
+                  color: AppColors.onPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: 4),
+                child: AppCircleIconButton(
+                  icon: Icons.photo_library_outlined,
+                  onPressed: () => context.push('/album'),
+                  size: 36,
+                  iconSize: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraView(CameraViewModelState state, CameraViewModel notifier, AppLocalizations l10n) {
     final cameraService = ref.watch(cameraServiceProvider);
     final controller = cameraService.controller;
     if (controller == null || !controller.value.isInitialized) {
@@ -156,10 +205,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1) 双指缩放 + 点击对焦曝光（姿势轮廓不跟随缩放）
         GestureDetector(
           onScaleStart: (details) {
-            // 记录缩放起始基线，避免连续 pinch 累计漂移
             _gestureBaseZoom = state.currentZoom;
           },
           onScaleUpdate: (details) {
@@ -167,7 +214,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             notifier.setZoom(zoom);
           },
           onTapUp: (details) {
-            // 把屏幕坐标按预览区域比例转换为 [0,1] 的对焦/曝光点
             final box = context.findRenderObject() as RenderBox?;
             if (box == null) return;
             final local = box.globalToLocal(details.globalPosition);
@@ -181,15 +227,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           },
           child: Center(child: CameraPreview(controller)),
         ),
-        // 1.5) 对焦指示器
         if (_focusPoint != null) _buildFocusIndicator(),
-        // 2) 姿势轮廓叠加（不跟随缩放）
         const PoseOverlay(),
-        // 3) 底部姿势缩略图条（前置相机隐藏；避让控制栏 + home indicator）
         Positioned(
           left: 0,
           right: 0,
-          bottom: AppSpacing.thumbHotzone + AppSpacing.shutterSize + _kPoseStripGap, // 控制栏上方
+          bottom: AppSpacing.thumbHotzone + AppSpacing.shutterSize + _kPoseStripGap,
           child: Visibility(
             visible: state.cameraIndex != 1,
             maintainState: true,
@@ -198,7 +241,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             child: const PoseThumbStrip(),
           ),
         ),
-        // 4) 底部相机控制栏
         Positioned(
           left: 0,
           right: 0,
@@ -219,7 +261,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             ),
           ),
         ),
-        // 5) 拍照闪白层（盖在最上）
         IgnorePointer(
           child: AnimatedBuilder(
             animation: _flashAnimation,
@@ -230,11 +271,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             },
           ),
         ),
+        // AppBar 浮在最顶层
+        _buildAppBarOverlay(l10n),
       ],
     );
   }
 
-  /// 当前对焦指示器的相对坐标（[0,1]）和所在 widget 尺寸
   Offset? _focusPoint;
   Size? _focusSize;
   Timer? _focusTimer;
@@ -269,16 +311,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     );
   }
 
-  /// 拍照动作：闪白 + 声效 + 跳编辑面板
   Future<void> _capture(CameraViewModel notifier) async {
-    // 先开闪白 + 声效，给用户即时反馈
     _flashController.forward(from: 0);
     unawaited(SystemSound.play(SystemSoundType.click));
 
     final path = await notifier.takePicture();
     if (path != null && mounted) {
       ref.read(filterViewModelProvider.notifier).setImage(path);
-      // 暂停相机预览（CameraController 实例保留，停止后台采集）
       final cameraService = ref.read(cameraServiceProvider);
       unawaited(cameraService.pausePreview());
 
@@ -289,10 +328,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         ),
       );
 
-      // 编辑面板关闭 → 恢复预览
       if (mounted) {
         unawaited(cameraService.resumePreview());
-        // TODO: 处理 savedPath（如刷新相册等）
       }
     }
   }
