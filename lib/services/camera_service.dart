@@ -1,6 +1,6 @@
-import 'dart:ui' show Offset;
-
 import 'package:camera/camera.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
+import 'package:flutter/widgets.dart' show Offset, Orientation;
 
 class CameraService {
   CameraController? _controller;
@@ -103,6 +103,23 @@ class CameraService {
     try {
       await c.resumePreview();
     } catch (_) {}
+  }
+
+  /// 把相机 sensor 锁到指定设备方向，让预览方向跟 UI 旋转一致
+  ///
+  /// 注意：2-value Orientation（portrait/landscape）足以覆盖本应用场景；
+  /// portraitUp vs portraitDown 的细分在 spec 中不要求。
+  Future<void> setOrientationFromDevice(Orientation orientation) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    final deviceOrientation = orientation == Orientation.portrait
+        ? DeviceOrientation.portraitUp
+        : DeviceOrientation.landscapeLeft;
+    try {
+      await c.lockCaptureOrientation(deviceOrientation);
+    } catch (_) {
+      // 老版本 camera 包 / 模拟器 / 不支持的设备静默跳过
+    }
   }
 
   void dispose() {
