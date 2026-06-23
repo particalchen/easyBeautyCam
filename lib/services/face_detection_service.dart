@@ -1,13 +1,10 @@
 import 'dart:io' show Platform;
-import 'dart:math' show Point;
 import 'dart:typed_data';
-import 'dart:ui' show Offset, Size;
-
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'dart:ui' show Offset;
 
 import 'face_detection/ios_face_detector.dart';
 
-/// 一个人脸的轮廓点集（不依赖 ML Kit 的 Face 类）
+/// 一个人脸的轮廓点集（不依赖任何平台 SDK）
 ///
 /// - [face]    整脸轮廓（用于 fillPolygon 主区域）
 /// - [leftEye] / [rightEye] / [lipUpper] / [lipLower] 用于 mask 内部"打洞"
@@ -30,7 +27,7 @@ class FaceContours {
 
 /// 底层人脸检测函数签名：path + bytes → FaceContours 列表
 ///
-/// 生产实现：iOS → Apple Vision（via `IOSFaceDetector`），Android → ML Kit。
+/// 生产实现：iOS → Apple Vision（via `IOSFaceDetector`），Android → 空 stub（TODO）。
 /// 测试里直接传 fake。
 typedef FaceDetectFn = Future<List<FaceContours>> Function(
   String imagePath,
@@ -43,12 +40,13 @@ typedef FaceDetectFn = Future<List<FaceContours>> Function(
 /// [clearCache] 释放内存。缓存上限不做 LRU（照片编辑场景，10 张以内够用）。
 ///
 /// 构造方式：
-/// - `FaceDetectionService()` —— 生产模式，根据平台路由（iOS → Vision，Android → ML Kit）
+/// - `FaceDetectionService()` —— 生产模式，根据平台路由（iOS → Vision，Android → 空 stub）
 /// - `FaceDetectionService(detectFn: ...)` —— 测试模式，注入 fake
 class FaceDetectionService {
   final FaceDetectFn _detect;
+
+  /// path → 缓存的脸轮廓
   final Map<String, List<FaceContours>> _cache = {};
-  static FaceDetector? _mlKitDetectorInstance;
 
   FaceDetectionService({FaceDetectFn? detectFn})
       : _detect = detectFn ?? _platformRouterDetector();
@@ -63,74 +61,32 @@ class FaceDetectionService {
 
   void clearCache() => _cache.clear();
 
-  /// 释放 ML Kit detector 资源（仅当用了 Android 默认 detector）
-  void dispose() {
-    if (_mlKitDetectorInstance != null) {
-      _mlKitDetectorInstance!.close();
-      _mlKitDetectorInstance = null;
-    }
-  }
+  /// 释放资源（当前实现没有 native handle 需关，留空兼容未来扩展）
+  void dispose() {}
 
   // ---- 内部：平台路由 ----
 
-  /// 默认 detector：根据平台路由（iOS → Vision，Android → ML Kit）
+  /// 默认 detector：根据平台路由
+  ///
+  /// - iOS → Apple Vision（MethodChannel → FaceDetectionPlugin.swift）
+  /// - Android → 空 stub（返回 `const []`，触发「未检测到人脸」降级 UI）
+  ///
+  /// Android 端的人脸检测是 TODO：之前用 google_mlkit_face_detection 但其
+  /// iOS pod 不发 arm64 simulator 切片，会让 iOS 26+ Apple Silicon sim 跑不起来。
+  /// 删 ML Kit 后 iOS sim 通了；Android 端需要重写时建议用平台通道调 Android
+  /// 原生 FaceDetector API 或新找一个不发 iOS pod 的纯 Android 库。
   static FaceDetectFn _platformRouterDetector() {
-    // iOS Simulator 和 device 都用 Apple Vision
     if (Platform.isIOS) {
       final detector = IOSFaceDetector();
       return detector.detect;
     }
-    // Android 用 ML Kit（保持原行为）
-    return _mlKitDetector();
+    return _androidStubDetector;
   }
 
-  // ---- 内部：ML Kit detector（Android only）----
-
-  static FaceDetectFn _mlKitDetector() {
-    _mlKitDetectorInstance ??= FaceDetector(
-      options: FaceDetectorOptions(
-        enableContours: true,
-        enableLandmarks: false,
-        performanceMode: FaceDetectorMode.fast,
-        enableClassification: false,
-        enableTracking: false,
-        minFaceSize: 0.15,
-      ),
-    );
-    final detector = _mlKitDetectorInstance!;
-    return (String path, Uint8List? bytes) async {
-      final InputImage input;
-      if (bytes != null) {
-        input = InputImage.fromBytes(
-          bytes: bytes,
-          metadata: InputImageMetadata(
-            size: const Size(1, 1),
-            rotation: InputImageRotation.rotation0deg,
-            format: InputImageFormat.nv21,
-            bytesPerRow: bytes.length,
-          ),
-        );
-      } else {
-        input = InputImage.fromFilePath(path);
-      }
-      final faces = await detector.processImage(input);
-      return faces.map(_convert).toList();
-    };
-  }
-
-  static FaceContours _convert(Face face) {
-    Offset pt(Point<int> p) =>
-        Offset(p.x.toDouble(), p.y.toDouble());
-    final fc = face.contours;
-    List<Offset>? get(FaceContourType t) =>
-        fc[t]?.points.map(pt).toList();
-    return FaceContours(
-      face: fc[FaceContourType.face]?.points.map(pt).toList() ?? const [],
-      leftEye: get(FaceContourType.leftEye),
-      rightEye: get(FaceContourType.rightEye),
-      // 上唇 = upperLipTop；下唇 = lowerLipBottom
-      lipUpper: get(FaceContourType.upperLipTop),
-      lipLower: get(FaceContourType.lowerLipBottom),
-    );
-  }
+  /// Android 临时 stub：返回空列表（= 永远检测不到人脸 → 美颜不生效 + UI 提示）
+  static Future<List<FaceContours>> _androidStubDetector(
+    String imagePath,
+    Uint8List? bytes,
+  ) async =>
+      const [];
 }
