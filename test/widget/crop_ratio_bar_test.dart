@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/crop_ratio_bar.dart';
@@ -27,6 +28,7 @@ class _NoopService extends ImageProcessingService {
     double smooth = 0,
     double whiten = 0,
     double slim = 0,
+    img.Image? mask,
   }) async => imageBytes;
 
   @override

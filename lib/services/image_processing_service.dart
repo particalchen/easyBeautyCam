@@ -112,19 +112,33 @@ class ImageProcessingService {
     return Uint8List.fromList(img.encodePng(result));
   }
 
+  /// 美颜（磨皮 + 美白 + 瘦脸）
+  ///
+  /// - [mask] = null → 直接返回原图，不做任何处理（per Q4 默认：
+  ///   检测不到人脸时无美颜回退，UI 上提示「未检测到人脸」）
+  /// - [mask] 1-channel grayscale：0=不处理，255=完全处理；边缘羽化时取 0~255
+  /// - 磨皮：在 mask > 0 的像素做 blend；blendFactor = (smooth/500) * mask/255
+  /// - 美白：在 mask > 0 的像素 +adjust；adjust = (whiten/100*30) * mask/255
+  /// - 瘦脸：slim 参数保留 stub，暂不实现
   Future<Uint8List> applyBeauty(
     Uint8List imageBytes, {
     double smooth = 30,
     double whiten = 20,
     double slim = 0,
+    img.Image? mask,
   }) async {
     final image = img.decodeImage(imageBytes);
     if (image == null) return imageBytes;
+    // 无 mask = 跳过美颜（原图返回，per Q4 默认）
+    if (mask == null) return imageBytes;
+
+    // 注意：gaussianBlur 会原地修改输入 image（package:image 的 quirk），
+    // 所以先 clone 一份原图，避免后续 mask=0 区域读到被污染的 orig。
+    final origImage = img.Image.from(image);
 
     var result = image;
 
-    // Smooth (Gaussian blur + blend)
-    // radius 保持极小（≤2），blendFactor 也很低（≤0.20），避免"模糊糊脸"感
+    // Smooth (Gaussian blur + blend，仅在 mask > 0 像素)
     if (smooth > 0) {
       final radius = (smooth / 30).round().clamp(1, 2);
       final blurred = img.gaussianBlur(result, radius: radius);
@@ -132,25 +146,45 @@ class ImageProcessingService {
       result = img.Image(width: result.width, height: result.height);
       for (int y = 0; y < result.height; y++) {
         for (int x = 0; x < result.width; x++) {
-          final orig = result.getPixel(x, y);
+          final m = mask.getPixel(x, y).r / 255.0;
+          // 注意：orig 必须从 clone 后的原图读取，不能从被 blur 污染的 image 读取
+          final orig = origImage.getPixel(x, y);
+          if (m <= 0) {
+            // mask=0 区域：不处理，复制原图即可
+            result.setPixelRgba(x, y, orig.r, orig.g, orig.b, orig.a.toInt());
+            continue;
+          }
           final blur = blurred.getPixel(x, y);
+          final localBlend = blendFactor * m; // 边缘羽化
           result.setPixelRgba(
             x, y,
-            ((orig.r * (1 - blendFactor) + blur.r * blendFactor)).round(),
-            ((orig.g * (1 - blendFactor) + blur.g * blendFactor)).round(),
-            ((orig.b * (1 - blendFactor) + blur.b * blendFactor)).round(),
+            ((orig.r * (1 - localBlend) + blur.r * localBlend)).round(),
+            ((orig.g * (1 - localBlend) + blur.g * localBlend)).round(),
+            ((orig.b * (1 - localBlend) + blur.b * localBlend)).round(),
             orig.a.toInt(),
           );
         }
       }
+    } else {
+      // 即使 smooth=0 也需要复制一份（因为 whiten 段会修改 result）
+      result = img.Image(width: image.width, height: image.height);
+      for (int y = 0; y < image.height; y++) {
+        for (int x = 0; x < image.width; x++) {
+          final p = origImage.getPixel(x, y);
+          result.setPixelRgba(x, y, p.r, p.g, p.b, p.a.toInt());
+        }
+      }
     }
 
-    // Whiten (brightness adjustment)
+    // Whiten (brightness adjustment，仅在 mask > 0 像素)
     if (whiten > 0) {
-      final adjust = (whiten / 100 * 30).round();
+      final adjustBase = (whiten / 100 * 30).round();
       for (int y = 0; y < result.height; y++) {
         for (int x = 0; x < result.width; x++) {
+          final m = mask.getPixel(x, y).r / 255.0;
+          if (m <= 0) continue;
           final p = result.getPixel(x, y);
+          final adjust = (adjustBase * m).round(); // 边缘羽化
           result.setPixelRgba(
             x, y,
             (p.r + adjust).clamp(0, 255),
@@ -171,6 +205,7 @@ class ImageProcessingService {
     double smooth = 0,
     double whiten = 0,
     double slim = 0,
+    img.Image? mask,
   }) async {
     var result = imageBytes;
     result = await applyFilter(result, filter);
@@ -179,6 +214,7 @@ class ImageProcessingService {
       smooth: smooth,
       whiten: whiten,
       slim: slim,
+      mask: mask,
     );
     // 自动亮度补偿：兜底「相机预览/拍照曝光不一致」导致的偏暗照片
     // 仅当 mean luma < 75 时提升，亮图不被动

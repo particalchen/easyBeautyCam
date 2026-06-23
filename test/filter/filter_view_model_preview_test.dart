@@ -34,6 +34,7 @@ class _CapturingProcessingService extends ImageProcessingService {
     double smooth = 0,
     double whiten = 0,
     double slim = 0,
+    img.Image? mask,
   }) async {
     callCount++;
     // 复用基础 PNG 字节 + 在尾部追加计数器字节，让每个 call 返回值仍然合法 PNG 头
