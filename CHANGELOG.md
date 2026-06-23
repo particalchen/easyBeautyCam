@@ -21,7 +21,7 @@
 
 ### Added
 - **相机取景页横屏旋转**：横屏握持时 layout 不重排版，整个 UI 作为一个整体旋转 90°（AppBar + 姿势叠加 + 底部控制栏 + 姿势缩略图条）。`RotatedBox` + `LayoutBuilder` swap 宽高让 portrait Stack 子节点在 landscape 屏幕下按 portrait 形状布局；AppBar 从 `Scaffold.appBar` 重构为 body 内的 Stack overlay 跟着一起转；`CameraService.setOrientationFromDevice(Orientation)` 调 `lockCaptureOrientation` 让相机 sensor 跟 UI 方向一致；`WidgetsBindingObserver.didChangeMetrics` 监听设备方向变化自动同步 sensor。范围**只**限相机取景页，编辑页 / 相册 / 菜单不参与。
-- **人脸识别美颜**：编辑页用 ML Kit（`google_mlkit_face_detection` 0.13.2 + `google_mlkit_commons` 0.11.0）静态图检测人脸；`ImageProcessingService.applyBeauty` 新增 `img.Image? mask` 参数，`mask==null` 跳过美颜（原图返回，per spec 默认），有 mask 时只在人脸区域（mask>0）做磨皮和美白，眼唇被排除（mask=0）；`FaceDetectionService` 按 `imagePath` 缓存（`Map<String, List<FaceContours>>`），滑杆拖动不重检测；`FaceMaskBuilder` 把轮廓转 1-channel mask（`fillPolygon` 整脸=255 → `fillPolygon` 眼唇=0 → 高斯羽化 radius=8）；`FilterViewModel._runProcess` 流水线串接 `applyFilter → detect(缓存命中) → buildMask → applyBeauty(with mask) → normalizeBrightness`，`FilterViewModelState` 新增 `faceCount` / `faceDetectionFailed` 字段；`BeautySlider` 顶部新增「未检测到人脸 / 已检测 N 张人脸」提示行（橙色 ⚠️ / 绿色 ✓）；l10n 新增 `beautyNoFaceDetected` / `beautyFaceDetected` 两个 key（zh + en，`AppColors` 新增 `warning` / `success`）。范围**只**限编辑页静态图，**不**做实时视频美颜，**不**做瘦脸。顺带修复 `applyBeauty` 3 个 pre-existing bug（`orig` 从空白 result 读 / `gaussianBlur` 原地污染 / `smooth=0` 分支没复制 orig）。
+- **人脸识别美颜**：编辑页静态图人脸检测。iOS 端用 **Apple Vision framework**（`VNDetectFaceLandmarksRequest` + `FlutterImplicitEngineDelegate` + MethodChannel `easy_beauty_cam/face_detection`，iOS 13.0+），Android 端用空 stub（返回 `const []` → 触发「未检测到人脸」UI）；`ImageProcessingService.applyBeauty` 新增 `img.Image? mask` 参数，`mask==null` 跳过美颜（原图返回，per spec 默认），有 mask 时只在人脸区域（mask>0）做磨皮和美白，眼唇被排除（mask=0）；`FaceDetectionService` 按 `imagePath` 缓存（`Map<String, List<FaceContours>>`），滑杆拖动不重检测；`FaceMaskBuilder` 把轮廓转 1-channel mask（`fillPolygon` 整脸=255 → `fillPolygon` 眼唇=0 → 高斯羽化 radius=8）；`FilterViewModel._runProcess` 流水线串接 `applyFilter → detect(缓存命中) → buildMask → applyBeauty(with mask) → normalizeBrightness`，`FilterViewModelState` 新增 `faceCount` / `faceDetectionFailed` 字段；`BeautySlider` 顶部新增「未检测到人脸 / 已检测 N 张人脸」提示行（橙色 ⚠️ / 绿色 ✓）；l10n 新增 `beautyNoFaceDetected` / `beautyFaceDetected` 两个 key（zh + en，`AppColors` 新增 `warning` / `success`）。范围**只**限编辑页静态图，**不**做实时视频美颜，**不**做瘦脸。顺带修复 `applyBeauty` 3 个 pre-existing bug（`orig` 从空白 result 读 / `gaussianBlur` 原地污染 / `smooth=0` 分支没复制 orig）。Vision normalizedPoints 是**左下角原点 + Y 向上**，Swift 插件里 `y = (1.0 - ny) * height` 翻 Y；iOS Vision `outerLips` / `innerLips` 映射到 ML Kit 风格 `lipUpper` / `lipLower` 凑合填，FaceMaskBuilder 用 OR 逻辑处理。
 
 ### Changed
 - **焦段按钮文字**：统一为 "Nx" 格式（`0.5x` / `1x` / `2x` / `3x`），去掉原来的 `.5` / `2` / `3` 不一致写法
@@ -43,9 +43,13 @@
 
 ### Architecture
 - 处理流水线：`filter → beauty → normalizeBrightness → applyTransform`（applyTransform 内部按目标比例 resize，不再单独调 crop）
+- **人脸检测**：`FaceDetectionService` 平台路由。iOS → `IOSFaceDetector` → Apple Vision（`VNDetectFaceLandmarksRequest`，5 类 landmark：face contour / leftEye / rightEye / outerLips / innerLips）；Android → 空 stub（`return const []`）。Swift 插件用 `FlutterImplicitEngineDelegate.didInitializeImplicitFlutterEngine` 注册（`engineBridge.pluginRegistry.registrar(forPlugin: "FaceDetectionPlugin")` 取 registrar 传给 `register(with:)`）
+
+### Removed
+- **`google_mlkit_face_detection: ^0.13.2` + `google_mlkit_commons: ^0.11.0`**：Google ML Kit 的预编译 framework 不发 arm64 simulator 切片，导致 iOS 26+ Apple Silicon 模拟器跑不起来。删除后 iOS 模拟器编译零警告；Android 端人脸检测改为空 stub（详见 Known）。`ios/Podfile` deployment target 从为 ML Kit 升的 15.5 回退到 13.0（Vision 框架最低要求）
 
 ### Known
-- 暂无
+- **Android 端人脸检测降级**：目前 Android 走空 stub，编辑页 BeautySlider 会一直显示「未检测到人脸」橙色提示，美颜不生效。后续实现建议：直接走平台通道调 Android 原生 `FaceDetector` API（API 14+），或找一个纯 Android 库（不发 iOS pod）
 
 ## [Unreleased] — 2026-06-19
 
