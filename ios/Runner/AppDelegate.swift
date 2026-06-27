@@ -12,9 +12,5 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    // FaceDetectionPlugin 需要从 registry 拿 registrar（FlutterPluginRegistrar）
-    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "FaceDetectionPlugin") {
-      FaceDetectionPlugin.register(with: registrar)
-    }
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'dart:ui' show Offset;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -293,93 +292,6 @@ void main() {
 
     test('CropRatio.original.label 返回 "原图"', () {
       expect(CropRatio.original.label, '原图');
-    });
-  });
-
-  group('ImageProcessingService.applyBeauty - mask 行为', () {
-    test('mask=null：直接返回原图，不做任何处理', () async {
-      // 1) 造一张 20x20 中心 rgb(100)，跑 applyBeauty(smooth=50, whiten=50, mask=null)
-      final src = img.Image(width: 20, height: 20);
-      img.fill(src, color: img.ColorRgb8(100, 100, 100));
-      final srcBytes = Uint8List.fromList(img.encodePng(src));
-
-      final svc = ImageProcessingService();
-      final out = await svc.applyBeauty(
-        srcBytes, smooth: 50, whiten: 50, slim: 0, mask: null,
-      );
-
-      // 2) 解码输出：所有像素应 == 原图
-      final decoded = img.decodeImage(out);
-      expect(decoded, isNotNull);
-      final center = decoded!.getPixel(10, 10);
-      expect(center.r, 100, reason: 'mask=null 时原图不被修改');
-      expect(center.g, 100);
-      expect(center.b, 100);
-    });
-
-    test('mask=allZero (全黑 mask)：原图不被修改', () async {
-      final src = img.Image(width: 20, height: 20);
-      img.fill(src, color: img.ColorRgb8(100, 100, 100));
-      final srcBytes = Uint8List.fromList(img.encodePng(src));
-
-      // 1-channel 全 0 mask
-      final mask = img.Image(width: 20, height: 20, numChannels: 1);
-      img.fill(mask, color: img.ColorRgb8(0, 0, 0));
-
-      final svc = ImageProcessingService();
-      final out = await svc.applyBeauty(
-        srcBytes, smooth: 50, whiten: 50, slim: 0, mask: mask,
-      );
-
-      final decoded = img.decodeImage(out)!;
-      expect(decoded.getPixel(10, 10).r, 100, reason: 'mask=0 时像素不被处理');
-    });
-
-    test('mask=fullWhite (全白 mask)：像素被磨皮', () async {
-      final src = img.Image(width: 20, height: 20);
-      img.fill(src, color: img.ColorRgb8(100, 100, 100));
-      final srcBytes = Uint8List.fromList(img.encodePng(src));
-
-      // 1-channel 全 255 mask
-      final mask = img.Image(width: 20, height: 20, numChannels: 1);
-      img.fill(mask, color: img.ColorRgb8(255, 255, 255));
-
-      final svc = ImageProcessingService();
-      final out = await svc.applyBeauty(
-        srcBytes, smooth: 50, whiten: 0, slim: 0, mask: mask,
-      );
-
-      // 平滑后每个像素应 ≈ 100（前后色相同 → blend 后还是 100）
-      final decoded = img.decodeImage(out)!;
-      final p = decoded.getPixel(10, 10);
-      expect(p.r, closeTo(100, 2));
-    });
-
-    test('mask=half (128 灰度)：边缘羽化 (whiten 提亮按 mask 灰度衰减)', () async {
-      // 左半边 0 mask，右半边 255 mask
-      final src = img.Image(width: 20, height: 20);
-      img.fill(src, color: img.ColorRgb8(100, 100, 100));
-      final srcBytes = Uint8List.fromList(img.encodePng(src));
-
-      final mask = img.Image(width: 20, height: 20, numChannels: 1);
-      for (var y = 0; y < 20; y++) {
-        for (var x = 0; x < 20; x++) {
-          mask.setPixel(x, y, x < 10
-              ? img.ColorRgb8(0, 0, 0)
-              : img.ColorRgb8(255, 255, 255));
-        }
-      }
-
-      final svc = ImageProcessingService();
-      final out = await svc.applyBeauty(
-        srcBytes, smooth: 0, whiten: 50, slim: 0, mask: mask,
-      );
-
-      final decoded = img.decodeImage(out)!;
-      // 左半边：whiten=0 → RGB 不变
-      expect(decoded.getPixel(5, 10).r, 100, reason: 'mask=0 区域不应被提亮');
-      // 右半边：whiten=50 → 100 + (50/100*30) = 115
-      expect(decoded.getPixel(15, 10).r, 115, reason: 'mask=255 区域应被提亮');
     });
   });
 }

@@ -12,7 +12,7 @@ class CameraService {
     if (_cameras.isEmpty) return;
     _controller = CameraController(
       _cameras.first,
-      ResolutionPreset.high,
+      ResolutionPreset.max,
       enableAudio: false,
     );
     await _controller!.initialize();
@@ -61,7 +61,7 @@ class CameraService {
     _controller?.dispose();
     _controller = CameraController(
       _cameras[index],
-      ResolutionPreset.high,
+      ResolutionPreset.max,
       enableAudio: false,
     );
     await _controller!.initialize();

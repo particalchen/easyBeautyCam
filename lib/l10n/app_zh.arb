@@ -49,13 +49,6 @@
   "filterJiaopian": "胶片",
   "@filterJiaopian": { "description": "胶片色调" },
 
-  "beautySmooth": "磨皮",
-  "@beautySmooth": { "description": "磨皮滑杆标签" },
-  "beautyWhiten": "美白",
-  "@beautyWhiten": { "description": "美白滑杆标签" },
-  "beautySlim": "瘦脸",
-  "@beautySlim": { "description": "瘦脸滑杆标签" },
-
   "menuTitle": "菜单",
   "@menuTitle": { "description": "菜单弹层标题" },
   "menuPoseLibrary": "姿势库",
@@ -63,20 +56,5 @@
   "menuSettings": "设置",
   "@menuSettings": { "description": "应用设置入口" },
   "menuAbout": "关于",
-  "@menuAbout": { "description": "关于应用" },
-
-  "beautyNoFaceDetected": "未检测到人脸，美颜未生效",
-  "@beautyNoFaceDetected": {
-    "description": "BeautySlider 顶部提示：未在照片中检测到人脸时显示"
-  },
-
-  "beautyFaceDetected": "已检测 {count} 张人脸",
-  "@beautyFaceDetected": {
-    "description": "BeautySlider 顶部提示：检测到 N 张人脸时显示",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  }
+  "@menuAbout": { "description": "关于应用" }
 }

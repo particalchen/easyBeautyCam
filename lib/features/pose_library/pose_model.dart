@@ -15,6 +15,16 @@ class PoseModel {
     this.remoteUrl,
   });
 
+  /// 参考图（pose 的真实照片）。约定与 `assetPath` 同目录，扩展名前加 `-res`。
+  /// 例如 `resources/poses/pose_outdoor_01.png` → `resources/poses/pose_outdoor_01-res.png`。
+  /// 仅内置 assets 派生；远程/自定义 pose 没有对应参考图时返回 null，UI 应回退到 [assetPath]。
+  String? get referenceAssetPath {
+    if (!isLocal) return null;
+    final dot = assetPath.lastIndexOf('.');
+    if (dot < 0) return null;
+    return '${assetPath.substring(0, dot)}-res${assetPath.substring(dot)}';
+  }
+
   factory PoseModel.fromJson(Map<String, dynamic> json) {
     return PoseModel(
       id: json['id'] as String,

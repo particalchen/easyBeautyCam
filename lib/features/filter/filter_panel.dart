@@ -6,7 +6,6 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'filter_view_model.dart';
-import 'widgets/beauty_slider.dart';
 import 'widgets/crop_ratio_bar.dart';
 import 'widgets/filter_carousel.dart';
 import 'widgets/interactive_crop_editor.dart';
@@ -33,7 +32,7 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -123,7 +122,6 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
               indicatorColor: AppColors.primary,
               tabs: const [
                 Tab(text: '滤镜'),
-                Tab(text: '美颜'),
                 Tab(text: '裁切'),
               ],
             ),
@@ -134,10 +132,6 @@ class _FilterPanelState extends ConsumerState<FilterPanel>
                 controller: _tabController,
                 children: const [
                   FilterCarousel(),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: BeautySlider(),
-                  ),
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     child: CropRatioBar(),

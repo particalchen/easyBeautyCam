@@ -32,6 +32,11 @@ class PoseThumbStrip extends ConsumerWidget {
         itemBuilder: (context, index) {
           final isSelected = index == poseState.selectedIndex;
           final pose = poseState.poses[index];
+          // 未选中：显示 -res 原图（彩色参考）；选中：显示 pose 轮廓图
+          // 远程/无 -res 的 pose 回退到 assetPath
+          final thumbPath = isSelected
+              ? pose.assetPath
+              : (pose.referenceAssetPath ?? pose.assetPath);
 
           return GestureDetector(
             onTap: () => ref.read(poseManagerProvider.notifier).selectPose(index),
@@ -49,10 +54,12 @@ class PoseThumbStrip extends ConsumerWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadii.xl - 1),
                 child: Image.asset(
-                  pose.assetPath,
+                  thumbPath,
                   fit: BoxFit.cover,
-                  color: Colors.white.withOpacity(isSelected ? 0.95 : 0.5),
-                  colorBlendMode: BlendMode.srcATop,
+                  // 选中的 pose 轮廓图用白色叠加做"轮廓效果"；
+                  // 未选中的 -res 原图保持原色，让用户看清 pose 长啥样
+                  color: isSelected ? Colors.white.withOpacity(0.95) : null,
+                  colorBlendMode: isSelected ? BlendMode.srcATop : null,
                   errorBuilder: (context, error, stack) => Container(
                     color: AppColors.surfaceContainer,
                     alignment: Alignment.center,

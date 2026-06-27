@@ -5,6 +5,35 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 本项目遵守 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] — 2026-06-27
+
+### Added
+- **相机页布局重构 + 焦段 pill 交互**。新增 `lib/features/camera/widgets/zoom_pill_bar.dart` —— 焦段 pill 浮层组件（半透明深色背景胶囊），浮在 preview 底部边缘；`CameraViewModelState` 新增 `lastSelectedPillZoom` 字段 + `setZoom(zoom, {fromPill})` 参数，`fromPill=true` 记录 pill 值并高亮、`fromPill=false`（默认，如 pinch）清空 pill 选中态；`CameraControls` 移除焦段 pill 行，新增 `showPoseStrip` 参数，内部布局为「PoseStrip（可选）→ 12pt gap → 控制栏」；`CameraScreen` 从单一 Stack with Positioned 改为 `Column + Expanded` 结构：AppBar → `Expanded(Stack[preview, ZoomPillBar(bottom:8), flash])` → 16pt gap → CameraControls；preview 与 PoseStrip 之间 16pt 明确空隙，焦段 pill 距 preview 底部 8pt（重叠约 28pt 几乎完全在 preview 内）。13 个新测试（`CameraViewModel.setZoom(fromPill:)` × 6 + `ZoomPillBar` × 7）+ `camera_controls_test.dart` 整体重写（适配新 API）。全量 128 测试通过。
+
+### Fixed
+- **拍照分辨率提到设备最大**。`lib/services/camera_service.dart` 两处（`initialize` / `switchCamera`）`ResolutionPreset.high` → `ResolutionPreset.max`。之前 iOS 上只给 1280×960（~300KB/张），与 iPhone 16 Pro 主摄 12MP binned（4032×3024）应有的画质相差 ~30 倍。改后约 3-5MB/张；保存链路（`ImageProcessingService.processImage` / `applyTransform` / `encodePng`）不降采样，源图多高就存多高，所以修拍照端即可。48MP 全像素需单独开 `imageFormatGroup`（本次未开）。
+
+## [Unreleased] — 2026-06-25
+
+### Added
+- **Pose 缩略图：默认显示 -res 原图、选中显示 pose 轮廓图**。`PoseModel` 新增 `referenceAssetPath` getter（本地 pose 在 `assetPath` 扩展名前插 `-res`；远程/无扩展名返回 null）；`PoseThumbStrip` 按 `isSelected` 切换：`!isSelected` → `referenceAssetPath ?? assetPath`（不调色，让用户看清 pose 长啥样），`isSelected` → `assetPath`（保留原来的白色叠加做"轮廓效果"）；`resources/poses/` 补齐 6 张原图（`pose_outdoor_01-res.png` ~ `pose_outdoor_06-res.png`），`_defaultLocalPoses` 列表扩到 6 张。6 个新测试（3 个 PoseModel getter + 3 个 widget 切换逻辑，含远程 pose 回退到 assetPath 的 case）。全量 166 测试通过。
+
+### Removed
+- **整个美颜功能**（2026-06-26 决定）。理由：产品方向调整，"拍原图 + 滤镜 + 裁切"已足够。具体删除：17 个文件（`lib/services/slim_warp_service.dart`、`slim_warp_types.dart`、`affine2d.dart`、`face_mesh_detector.dart`、`face_mask_builder.dart`、`face_detection_service.dart`、`face_detection/` 整个目录、`slim_zone.dart`、`features/filter/widgets/beauty_slider.dart`、`main_slim_mvp.dart`、`main_day2_verify.dart`、`ios/Runner/FaceDetectionPlugin.swift`、5 个相关测试）；3 个 i18n key（`beautySmooth` / `beautyWhiten` / `beautySlim` / `beautyNoFaceDetected` / `beautyFaceDetected` 从 zh+en arb 删除）；`pubspec.yaml` 移除 `mediapipe_face_mesh: ^1.8.1` 依赖；`ImageProcessingService` 移除 `applyBeauty` 方法、`processImage` 简化为 `applyFilter → normalizeBrightness`；`FilterViewModel` 移除 `smooth` / `whiten` / `slim` / `faceCount` / `faceDetectionFailed` 状态字段，删除 `faceDetectionServiceProvider` / `faceMaskBuilderProvider` / `faceMeshDetectorProvider` 三个 provider，构造函数从 6 参瘦身到 3 参（`_processingService` / `_photoAlbumWriter` / `_appPhotoRepository`），`_runProcess` 流水线去掉 detect / buildMask / applyBeauty 链路；`FilterPanel` `TabController.length` 从 3 缩到 2，TabBar/TabBarView 移除「美颜」Tab；6 个测试 stub 文件同步精简（`_NoopFaceDetector` / `_NoopMaskBuilder` / `_NoopFaceMeshDetector` 全删，`FilterViewModel` 构造从 6 参改 3 参，`image_processing_service_test.dart` 整个 `applyBeauty - mask 行为` 测试组删除）。全量 120 测试通过（从 166 缩减到 120，主要差异来自删除的 17 个美颜测试 + 删测试组中的 4 个 applyBeauty 用例 + 一些 stub-only 重复）。
+
+## [Unreleased] — 2026-06-24
+
+### Added
+- **瘦脸（编辑页静态图）**：基于 `mediapipe_face_mesh` 1.8.1（cornpip）468 点 3D mesh + 852 三角剖分 + 2D 仿射瘦脸算法。新增 `SlimWarpService`：三角形细分 → 仅变形指定 zone（左右脸颊 + 下颌）内的三角形 → 每三角形 2D affine（保留局部形状，仅沿面中轴线内推）→ 反向映射 + 双线性采样（保证无空洞）。`FaceMeshDetector` 是 mediapipe wrapper，新出 `FaceMeshResult { landmarks, triangles, isValid }` 类型与项目解耦。`ImageProcessingService.applyBeauty` 新增 `mesh` 参数，`slim > 0 && mesh != null && mesh.isValid` 时先 warp 再走原有 smooth/whiten；`slim = 0` 跳过整条 mediapipe 链路（性能优化）。`FilterViewModel` 注入 `FaceMeshDetector`，`_runProcess` 在 `slim > 0` 时按 `imagePath` 缓存取 mesh（命中缓存不重检测），并 try/catch 静默吞 mediapipe 异常避免滑杆拖动崩溃；`setImage` 清两个 detector 缓存（Vision + mediapipe）。编辑页「瘦脸」滑杆走的是现有 slider 通路，0-100 默认 0，**滑杆 UI 已有**（commit `baa4df6` 之前的 BeautySlider 早就接好了），这次是把后端 warp 算法接通。新增 `lib/main_slim_mvp.dart` + `lib/main_day2_verify.dart` 两个 iOS 真机验证入口；21 个新测试（16 个 warp 单元测试 + 5 个滑杆集成测试）。MVP 在 iPhone 16 Pro 真机验证通过（`Documents/build/slim_mvp_warped.jpg` 等文件）。详见 `docs/MEMO.md` 〇十二。
+
+### Architecture
+- 瘦脸流水线：`filter → mediapipe mesh (slim>0) → SlimWarpService.applySlim → applyBeauty(smooth, whiten, slim, mask, mesh) → normalizeBrightness`。两条平行人脸检测链路：Vision 64 点 → mask（眼唇排除）；mediapipe 468 点 → warp（完整几何）。两者互不依赖，mediapipe 失败时瘦脸降级为原图但其他美颜参数照常生效。
+
+### Known
+- **瘦脸滑杆 strength=1.0 时脸颊边缘有轻微色缝**（`bilerp` 边界外像素 fallback 不完美），目前靠默认滑杆位置（0）规避；强度 ≤ 0.7 视觉上看不出来
+- **mediapipe 在弱光/侧脸/远景场景会返回 null**，瘦脸滑到非零但照片无效果；与 Vision 一致，暂不加 UI 提示（避免双重提示污染）
+- **iOS 真机调试**：`flutter run --release -t lib/main_day2_verify.dart` 在 iPhone 16 Pro 上存在「安装成功但调试日志断开」的现象；改用 `flutter build ios --release` + `xcrun devicectl device install app` + 手工从 Documents 提取产物验证；MVP 已用后者跑通
+
 ## [Unreleased] — 2026-06-23
 
 ### Fixed

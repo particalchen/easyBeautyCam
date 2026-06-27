@@ -4,25 +4,13 @@ import 'dart:typed_data';
 import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image/image.dart' as img;
 
-import '../../services/face_detection_service.dart';
-import '../../services/face_mask_builder.dart';
 import '../../services/image_processing_service.dart';
 import '../../services/photo_album_writer.dart';
 import '../photo_album/app_photo_repository.dart';
-import '../../../core/constants/app_constants.dart';
 
 final imageProcessingServiceProvider = Provider<ImageProcessingService>((ref) {
   return ImageProcessingService();
-});
-
-final faceDetectionServiceProvider = Provider<FaceDetectionService>((ref) {
-  return FaceDetectionService();
-});
-
-final faceMaskBuilderProvider = Provider<FaceMaskBuilder>((ref) {
-  return FaceMaskBuilder();
 });
 
 final filterViewModelProvider = StateNotifierProvider<FilterViewModel, FilterViewModelState>((ref) {
@@ -30,8 +18,6 @@ final filterViewModelProvider = StateNotifierProvider<FilterViewModel, FilterVie
     ref.watch(imageProcessingServiceProvider),
     ref.watch(photoAlbumWriterProvider),
     ref.watch(appPhotoRepositoryProvider),
-    ref.watch(faceDetectionServiceProvider),
-    ref.watch(faceMaskBuilderProvider),
   );
 });
 
@@ -39,42 +25,29 @@ class FilterViewModelState {
   final String? imagePath;
   final FilterType selectedFilter;
   final CropRatio cropRatio;
-  final double smooth;
-  final double whiten;
-  final double slim;
   final bool isProcessing; // 保存时
   final bool isPreviewProcessing; // 实时预览处理时
   final Uint8List? previewBytes; // 处理后预览图
   final Uint8List? originalBytes; // 原图缓存（避免重复读盘）
   final double scale;
   final Offset translation;
-  final int faceCount; // 当前预览中识别到的人脸数（0 = 没脸或未检测）
-  final bool faceDetectionFailed; // ML Kit 异常时降级到无美颜
 
   const FilterViewModelState({
     this.imagePath,
     this.selectedFilter = FilterType.original,
     this.cropRatio = CropRatio.original,
-    this.smooth = AppConstants.defaultBeautySmooth,
-    this.whiten = AppConstants.defaultBeautyWhiten,
-    this.slim = AppConstants.defaultBeautySlim,
     this.isProcessing = false,
     this.isPreviewProcessing = false,
     this.previewBytes,
     this.originalBytes,
     this.scale = 1.0,
     this.translation = Offset.zero,
-    this.faceCount = 0,
-    this.faceDetectionFailed = false,
   });
 
   FilterViewModelState copyWith({
     String? imagePath,
     FilterType? selectedFilter,
     CropRatio? cropRatio,
-    double? smooth,
-    double? whiten,
-    double? slim,
     bool? isProcessing,
     bool? isPreviewProcessing,
     Uint8List? previewBytes,
@@ -83,24 +56,17 @@ class FilterViewModelState {
     Offset? translation,
     bool clearOriginalBytes = false,
     bool clearPreviewBytes = false,
-    int? faceCount,
-    bool? faceDetectionFailed,
   }) {
     return FilterViewModelState(
       imagePath: imagePath ?? this.imagePath,
       selectedFilter: selectedFilter ?? this.selectedFilter,
       cropRatio: cropRatio ?? this.cropRatio,
-      smooth: smooth ?? this.smooth,
-      whiten: whiten ?? this.whiten,
-      slim: slim ?? this.slim,
       isProcessing: isProcessing ?? this.isProcessing,
       isPreviewProcessing: isPreviewProcessing ?? this.isPreviewProcessing,
       previewBytes: clearPreviewBytes ? null : (previewBytes ?? this.previewBytes),
       originalBytes: clearOriginalBytes ? null : (originalBytes ?? this.originalBytes),
       scale: scale ?? this.scale,
       translation: translation ?? this.translation,
-      faceCount: faceCount ?? this.faceCount,
-      faceDetectionFailed: faceDetectionFailed ?? this.faceDetectionFailed,
     );
   }
 }
@@ -109,8 +75,6 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
   final ImageProcessingService _processingService;
   final PhotoAlbumWriter _photoAlbumWriter;
   final AppPhotoRepository _appPhotoRepository;
-  final FaceDetectionService _faceDetector;
-  final FaceMaskBuilder _maskBuilder;
 
   /// 防抖定时器：滑动 slider 时合并多次请求
   Timer? _debounce;
@@ -119,19 +83,14 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     this._processingService,
     this._photoAlbumWriter,
     this._appPhotoRepository,
-    this._faceDetector,
-    this._maskBuilder,
   ) : super(const FilterViewModelState());
 
   /// 切换到新的待编辑照片
   void setImage(String path) {
-    _faceDetector.clearCache();
     state = state.copyWith(
       imagePath: path,
       clearOriginalBytes: true,
       clearPreviewBytes: true,
-      faceCount: 0,
-      faceDetectionFailed: false,
     );
     _scheduleProcess(immediate: true);
   }
@@ -156,21 +115,6 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
 
   void resetTransform() {
     state = state.copyWith(scale: 1.0, translation: Offset.zero);
-    _scheduleProcess();
-  }
-
-  void setSmooth(double value) {
-    state = state.copyWith(smooth: value);
-    _scheduleProcess();
-  }
-
-  void setWhiten(double value) {
-    state = state.copyWith(whiten: value);
-    _scheduleProcess();
-  }
-
-  void setSlim(double value) {
-    state = state.copyWith(slim: value);
     _scheduleProcess();
   }
 
@@ -202,59 +146,16 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
     if (!mounted) return;
     state = state.copyWith(isPreviewProcessing: true);
 
-    // 2) applyFilter
-    final filtered = await _processingService.applyFilter(
+    // 2) filter → 亮度补偿（美颜流水线 2026-06-25 移除）
+    final processed = await _processingService.processImage(
       origBytes,
-      state.selectedFilter,
+      filter: state.selectedFilter,
     );
-
-    // 3) 人脸检测（带缓存：setImage 触发，setSmooth/Whiten 复用缓存）
-    img.Image? mask;
-    int faceCount = 0;
-    bool failed = false;
-    try {
-      final contours = await _faceDetector.detect(
-        state.imagePath!,
-        bytes: filtered,
-      );
-      faceCount = contours.length;
-      if (contours.isNotEmpty) {
-        final decoded = img.decodeImage(filtered);
-        final w = decoded?.width ?? 0;
-        final h = decoded?.height ?? 0;
-        if (w > 0 && h > 0) {
-          mask = _maskBuilder.buildMask(
-            width: w,
-            height: h,
-            faces: contours,
-          );
-        }
-      }
-    } catch (e) {
-      // ML Kit 不可用 / 抛异常 → 降级到无美颜（per Q4 默认）
-      failed = true;
-    }
-
-    if (!mounted) return;
-
-    // 4) 美颜（mask 决定是否生效）
-    var processed = await _processingService.applyBeauty(
-      filtered,
-      smooth: state.smooth,
-      whiten: state.whiten,
-      slim: state.slim,
-      mask: mask,
-    );
-
-    // 5) 自动亮度补偿
-    processed = await _processingService.normalizeBrightness(processed);
 
     if (!mounted) return;
     state = state.copyWith(
       previewBytes: processed,
       isPreviewProcessing: false,
-      faceCount: faceCount,
-      faceDetectionFailed: failed,
     );
   }
 
@@ -268,10 +169,6 @@ class FilterViewModel extends StateNotifier<FilterViewModelState> {
         await _processingService.processImage(
           await _readImageBytes(state.imagePath!),
           filter: state.selectedFilter,
-          smooth: state.smooth,
-          whiten: state.whiten,
-          slim: state.slim,
-          mask: null, // save 时已用 previewBytes，避免重复 detect
         );
 
     // 裁切 + transform（自由比例 = 仅在用户缩放/平移过时按可见区域裁切）

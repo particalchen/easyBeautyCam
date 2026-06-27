@@ -54,15 +54,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filterJiaopian => 'Film';
 
   @override
-  String get beautySmooth => 'Smooth';
-
-  @override
-  String get beautyWhiten => 'Whiten';
-
-  @override
-  String get beautySlim => 'Slim';
-
-  @override
   String get menuTitle => 'Menu';
 
   @override
@@ -73,12 +64,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuAbout => 'About';
-
-  @override
-  String get beautyNoFaceDetected => 'No face detected, beauty is disabled';
-
-  @override
-  String beautyFaceDetected(int count) {
-    return 'Detected $count face(s)';
-  }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/core/theme/app_colors.dart';
 import 'package:easy_beauty_cam/core/theme/app_radii.dart';
@@ -12,14 +11,16 @@ import 'package:easy_beauty_cam/features/filter/filter_panel.dart';
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
-import 'package:easy_beauty_cam/services/face_detection_service.dart';
-import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
 class _StubRepo extends FilterViewModel {
   _StubRepo({String? imagePath, Uint8List? previewBytes})
-      : super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder()) {
+      : super(
+          _NoopService(),
+          _NoopWriter(),
+          _NoopRepo(),
+        ) {
     if (imagePath != null) {
       state = state.copyWith(imagePath: imagePath, previewBytes: previewBytes);
     }
@@ -30,16 +31,6 @@ class _StubRepo extends FilterViewModel {
     state = state.copyWith(imagePath: path, previewBytes: bytes);
   }
 }
-
-/// 1x1 透明 PNG（最小可解码图片，避免 widget test 找不到 asset）
-final _kTinyPng = Uint8List.fromList(const [
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xC0,
-  0xC0, 0x00, 0x00, 0x00, 0x05, 0x00, 0x01, 0x9D, 0xA1, 0x88, 0x84, 0x00,
-  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
-]);
 
 /// 9x16 透明 PNG（竖向，模拟真机 portrait 照片的极端长宽比）
 final _kTallPng = Uint8List.fromList(const [
@@ -56,10 +47,6 @@ class _NoopService extends ImageProcessingService {
   Future<Uint8List> processImage(
     Uint8List imageBytes, {
     FilterType filter = FilterType.original,
-    double smooth = 0,
-    double whiten = 0,
-    double slim = 0,
-    img.Image? mask,
   }) async {
     return imageBytes;
   }
@@ -79,12 +66,6 @@ class _NoopRepo implements AppPhotoRepository {
   @override
   Future<void> delete(List<String> paths) async {}
 }
-
-class _NoopFaceDetector extends FaceDetectionService {
-  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
-}
-
-class _NoopMaskBuilder extends FaceMaskBuilder {}
 
 Future<void> pumpPanel(
   WidgetTester tester, {
@@ -132,21 +113,9 @@ void main() {
       await pumpPanel(tester);
 
       expect(find.text('滤镜'), findsOneWidget);
-      expect(find.text('美颜'), findsOneWidget);
+      expect(find.text('裁切'), findsOneWidget);
       expect(find.text('原图'), findsOneWidget);
       expect(find.text('珊瑚'), findsOneWidget);
-    });
-
-    testWidgets('切到美颜 tab 显示 BeautySlider（3 个标签）', (tester) async {
-      await pumpPanel(tester);
-
-      // 切到「美颜」tab
-      await tester.tap(find.text('美颜'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('磨皮'), findsOneWidget);
-      expect(find.text('美白'), findsOneWidget);
-      expect(find.text('瘦脸'), findsOneWidget);
     });
 
     testWidgets('切到裁切 tab 显示 6 个比例按钮 + 切比例触发 setCropRatio', (tester) async {

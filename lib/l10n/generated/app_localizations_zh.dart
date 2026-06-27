@@ -54,15 +54,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get filterJiaopian => '胶片';
 
   @override
-  String get beautySmooth => '磨皮';
-
-  @override
-  String get beautyWhiten => '美白';
-
-  @override
-  String get beautySlim => '瘦脸';
-
-  @override
   String get menuTitle => '菜单';
 
   @override
@@ -73,12 +64,4 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get menuAbout => '关于';
-
-  @override
-  String get beautyNoFaceDetected => '未检测到人脸，美颜未生效';
-
-  @override
-  String beautyFaceDetected(int count) {
-    return '已检测 $count 张人脸';
-  }
 }

@@ -188,24 +188,6 @@ abstract class AppLocalizations {
   /// **'胶片'**
   String get filterJiaopian;
 
-  /// 磨皮滑杆标签
-  ///
-  /// In zh, this message translates to:
-  /// **'磨皮'**
-  String get beautySmooth;
-
-  /// 美白滑杆标签
-  ///
-  /// In zh, this message translates to:
-  /// **'美白'**
-  String get beautyWhiten;
-
-  /// 瘦脸滑杆标签
-  ///
-  /// In zh, this message translates to:
-  /// **'瘦脸'**
-  String get beautySlim;
-
   /// 菜单弹层标题
   ///
   /// In zh, this message translates to:
@@ -229,18 +211,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关于'**
   String get menuAbout;
-
-  /// BeautySlider 顶部提示：未在照片中检测到人脸时显示
-  ///
-  /// In zh, this message translates to:
-  /// **'未检测到人脸，美颜未生效'**
-  String get beautyNoFaceDetected;
-
-  /// BeautySlider 顶部提示：检测到 N 张人脸时显示
-  ///
-  /// In zh, this message translates to:
-  /// **'已检测 {count} 张人脸'**
-  String beautyFaceDetected(int count);
 }
 
 class _AppLocalizationsDelegate

@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
@@ -18,10 +17,6 @@ class _FakeProcessingService extends ImageProcessingService {
   Future<Uint8List> processImage(
     Uint8List imageBytes, {
     FilterType filter = FilterType.original,
-    double smooth = 0,
-    double whiten = 0,
-    double slim = 0,
-    img.Image? mask,
   }) async {
     return _fakeBytes;
   }

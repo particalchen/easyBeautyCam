@@ -41,6 +41,41 @@ const List<PoseModel> _defaultLocalPoses = [
     assetPath: 'resources/poses/pose_outdoor_01.png',
     isLocal: true,
   ),
+  PoseModel(
+    id: 'local_02',
+    name: '户外姿势2',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_02.png',
+    isLocal: true,
+  ),
+  PoseModel(
+    id: 'local_03',
+    name: '户外姿势3',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_03.png',
+    isLocal: true,
+  ),
+  PoseModel(
+    id: 'local_04',
+    name: '户外姿势4',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_04.png',
+    isLocal: true,
+  ),
+  PoseModel(
+    id: 'local_05',
+    name: '户外姿势5',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_05.png',
+    isLocal: true,
+  ),
+  PoseModel(
+    id: 'local_06',
+    name: '户外姿势6',
+    category: 'outdoor',
+    assetPath: 'resources/poses/pose_outdoor_06.png',
+    isLocal: true,
+  ),
 ];
 
 class PoseManager extends StateNotifier<PoseManagerState> {

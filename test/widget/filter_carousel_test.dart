@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 
 import 'dart:typed_data';
 
@@ -10,8 +9,6 @@ import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/filter_carousel.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
-import 'package:easy_beauty_cam/services/face_detection_service.dart';
-import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
@@ -56,7 +53,11 @@ class _TestFilterViewModel extends FilterViewModel {
   final FilterType selected;
   final void Function(FilterType)? onSelect;
   _TestFilterViewModel({required this.selected, this.onSelect})
-      : super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder());
+      : super(
+          _NoopService(),
+          _NoopWriter(),
+          _NoopRepo(),
+        );
 
   @override
   FilterViewModelState get state =>
@@ -73,10 +74,6 @@ class _NoopService extends ImageProcessingService {
   Future<Uint8List> processImage(
     Uint8List imageBytes, {
     FilterType filter = FilterType.original,
-    double smooth = 0,
-    double whiten = 0,
-    double slim = 0,
-    img.Image? mask,
   }) async {
     return imageBytes;
   }
@@ -96,12 +93,6 @@ class _NoopRepo implements AppPhotoRepository {
   @override
   Future<void> delete(List<String> paths) async {}
 }
-
-class _NoopFaceDetector extends FaceDetectionService {
-  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
-}
-
-class _NoopMaskBuilder extends FaceMaskBuilder {}
 
 void main() {
   group('FilterCarousel', () {

@@ -4,20 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 
 import 'package:easy_beauty_cam/features/filter/filter_view_model.dart';
 import 'package:easy_beauty_cam/features/filter/widgets/crop_ratio_bar.dart';
 import 'package:easy_beauty_cam/features/photo_album/app_photo_repository.dart';
 import 'package:easy_beauty_cam/l10n/generated/app_localizations.dart';
-import 'package:easy_beauty_cam/services/face_detection_service.dart';
-import 'package:easy_beauty_cam/services/face_mask_builder.dart';
 import 'package:easy_beauty_cam/services/image_processing_service.dart';
 import 'package:easy_beauty_cam/services/photo_album_writer.dart';
 
 class _Stub extends FilterViewModel {
   _Stub(FilterViewModelState s)
-      : super(_NoopService(), _NoopWriter(), _NoopRepo(), _NoopFaceDetector(), _NoopMaskBuilder()) {
+      : super(
+          _NoopService(),
+          _NoopWriter(),
+          _NoopRepo(),
+        ) {
     state = s;
   }
 }
@@ -27,10 +28,6 @@ class _NoopService extends ImageProcessingService {
   Future<Uint8List> processImage(
     Uint8List imageBytes, {
     FilterType filter = FilterType.original,
-    double smooth = 0,
-    double whiten = 0,
-    double slim = 0,
-    img.Image? mask,
   }) async => imageBytes;
 
   @override
@@ -56,27 +53,21 @@ class _NoopRepo implements AppPhotoRepository {
   Future<void> delete(List<String> paths) async {}
 }
 
-class _NoopFaceDetector extends FaceDetectionService {
-  _NoopFaceDetector() : super(detectFn: (path, bytes) async => const []);
-}
-
-class _NoopMaskBuilder extends FaceMaskBuilder {}
-
 Future<void> _pump(WidgetTester tester, FilterViewModel stub) async {
   await tester.pumpWidget(ProviderScope(
     overrides: [
       filterViewModelProvider.overrideWith((_) => stub),
     ],
-    child: MaterialApp(
-      localizationsDelegates: const [
+    child: const MaterialApp(
+      localizationsDelegates: [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      locale: const Locale('zh'),
-      home: const Scaffold(body: Material(child: CropRatioBar())),
+      locale: Locale('zh'),
+      home: Scaffold(body: Material(child: CropRatioBar())),
     ),
   ));
   await tester.pump();
