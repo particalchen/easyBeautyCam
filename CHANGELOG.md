@@ -5,6 +5,11 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 本项目遵守 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] — 2026-06-28
+
+### Added
+- **Pose 缩略图长按半透明预览**。长按 `PoseThumbStrip` 任意缩略图不放，那张 pose 的 `-res` 彩色原图以 50% 不透明度覆盖在取景框上，长按期间取景框上的 pose 轮廓图（`PoseOverlay`）自动隐藏；松开或移出缩略图外松开后恢复原状，不影响当前选中的 pose。新增 `lib/features/camera/state/pose_long_press_provider.dart`（瞬时长按态 `StateNotifierProvider<PoseLongPressNotifier, PoseModel?>`）+ `lib/features/camera/widgets/pose_long_press_preview.dart`（`Positioned.fill + IgnorePointer + Opacity(0.5) + Image.asset`，与 PoseOverlay 互斥），`PoseOverlay` 开头加 long-press 检查让位，`PoseThumbStrip` 每个缩略图的 GestureDetector 增 `onLongPressStart` / `onLongPressEnd` / `onLongPressCancel` 三个回调（短按切换选区与长按预览并存，由 gesture arena 派发）。10 个新测试（4 个 provider 单测 + 3 个 preview widget + 3 个 strip 长按手势），全量 138 测试通过。
+
 ## [Unreleased] — 2026-06-27
 
 ### Added

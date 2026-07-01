@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../pose_library/pose_manager.dart';
+import '../state/pose_long_press_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -40,6 +41,14 @@ class PoseThumbStrip extends ConsumerWidget {
 
           return GestureDetector(
             onTap: () => ref.read(poseManagerProvider.notifier).selectPose(index),
+            // 长按半透明预览：start 写入长按态，end/cancel 恢复（end 包含松开在缩略图外的情况）
+            onLongPressStart: (_) => ref
+                .read(poseLongPressProvider.notifier)
+                .show(pose),
+            onLongPressEnd: (_) =>
+                ref.read(poseLongPressProvider.notifier).clear(),
+            onLongPressCancel: () =>
+                ref.read(poseLongPressProvider.notifier).clear(),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: AppSpacing.poseThumbnail - 20, // 60pt 宽

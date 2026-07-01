@@ -1,13 +1,76 @@
 # EasyBeautyCam 项目备忘
 
 > 创建时间：2026-06-05
-> 最后更新：2026-06-27
+> 最后更新：2026-06-28
 
 ---
 
-## 〇、最新进度（2026-06-27）
+## 〇、最新进度（2026-06-28）
 
-**最新**：〇十五 焦段 pill / PoseStrip 重新布局 + 双指缩放清空 pill 选中
+**最新**：〇十六 Pose 缩略图长按半透明预览
+
+### 〇十六 Pose 缩略图长按半透明预览（2026-06-28）✅ 完成
+
+### 〇十六 Pose 缩略图长按半透明预览（2026-06-28）✅ 完成
+
+**背景**：相机页 PoseThumbStrip 上 6 张缩略图之前只是「点击切换选中」，没有"先看看 pose 长啥样再决定"的预览机制。用户长按一张缩略图，想临时把那张 pose 的真实照片（彩色 -res 原图）半透明地铺在取景框上对比构图，松开手恢复原状；长按期间取景框上的 pose 轮廓图应该隐藏，避免两张图叠在一起看不清。
+
+**变更**：
+
+1. **新增 `lib/features/camera/state/pose_long_press_provider.dart`** —— 瞬时长按态 provider
+   - `StateNotifierProvider<PoseLongPressNotifier, PoseModel?>`
+   - `show(PoseModel)` 写入被长按的 pose；`clear()` 恢复 null
+   - 纯瞬时 UI 状态，**不与 `poseManagerProvider.selectedIndex` 耦合**（长按不影响"当前选中"，松手后视觉恢复但选区不变）
+
+2. **新增 `lib/features/camera/widgets/pose_long_press_preview.dart`** —— 半透明原图覆盖层
+   - `Positioned.fill + IgnorePointer + Opacity(0.5) + Image.asset(referenceAssetPath ?? assetPath)`
+   - 无 `color`/`colorBlendMode`（与 `PoseOverlay` 的白色轮廓刻意区分）
+   - state==null → `SizedBox.shrink()`（零开销）
+   - `IgnorePointer` 不拦截 tap-to-focus 等手势
+
+3. **`PoseOverlay` 改动**：开头加一行 `if (ref.watch(poseLongPressProvider) != null) return SizedBox.shrink()` —— 长按期间让位给 `PoseLongPressPreview`，两张图不会同时糊在取景框上
+
+4. **`PoseThumbStrip` 改动**：每个缩略图的 `GestureDetector` 增 3 个回调
+   ```dart
+   onLongPressStart: (_) => ref.read(poseLongPressProvider.notifier).show(pose),
+   onLongPressEnd:    (_) => ref.read(poseLongPressProvider.notifier).clear(),
+   onLongPressCancel: ()   => ref.read(poseLongPressProvider.notifier).clear(),
+   ```
+   - `onTap`（短按切换选中）与 `onLongPressStart` 等并存：Flutter gesture arena 会先等 `kLongPressTimeout` 再决定派发哪个
+
+5. **`CameraScreen._buildPreviewFrame` Stack** 内增加 `const PoseLongPressPreview()`（在 `PoseOverlay` 之后），与现有 overlay 共用同一组 `Positioned.fill + IgnorePointer`
+
+**新增测试**（10 个）：
+- `test/features/camera/pose_long_press_provider_test.dart`（新文件，4 个）：初始 null / show+clear / 连续 show 切换不累加 / 反复切换保持正确
+- `test/widget/pose_long_press_preview_test.dart`（新文件，3 个）：state==null 不渲染 / 本地 pose 取 -res / 远程 pose 回退到 assetPath；断言 Opacity=0.5 且无 color/blendMode 叠加
+- `test/widget/pose_thumb_strip_test.dart`（追加 3 个）：
+  - 长按第 2 张：长按 hold 中段断言 `poseLongPressProvider.state` 是 `local_02`；松开后清空
+  - 单独验证 `onLongPressEnd` 路径清空
+  - 短按不会误触发长按态
+
+**关键技术点**：
+- `tester.longPress(finder)` 内部自带 "down + 等长按超时 + up"，会触发 `onLongPressEnd` 清空 state，**不能用来断言 hold 中的状态**。要断言 hold 中段必须手动 `startGesture` → `pump(kLongPressTimeout + 100ms)` → 断言 → `gesture.up()`
+- 远程 pose（`isLocal == false`）无 `-res` 文件，长按预览会回退到 `assetPath`（即轮廓图本身），效果等于"把轮廓图半透明叠在自己上面"，不太理想但行为一致——产品接受
+
+**影响文件**：
+- `lib/features/camera/state/pose_long_press_provider.dart`（新）
+- `lib/features/camera/widgets/pose_long_press_preview.dart`（新）
+- `lib/features/camera/widgets/pose_overlay.dart`（开头加 long-press 检查）
+- `lib/features/camera/widgets/pose_thumb_strip.dart`（GestureDetector 增 3 个长按回调）
+- `lib/features/camera/camera_screen.dart`（_buildPreviewFrame Stack 增 `const PoseLongPressPreview()`）
+- 3 个测试文件
+
+**验证**：
+- `flutter analyze` 干净（5 个预存在 `withOpacity` deprecation 无变化）
+- `flutter test` 全量 138 测试通过（之前 128 + 10 个新测试）
+- `flutter build ios --debug --no-codesign` 待跑
+
+**未做（YAGNI）**：
+- 长按时整张缩略图视觉放大反馈（按住时 scale 1.05x）：当前缩略图只有描边变化，视觉反馈偏弱，可后续补
+- 长按时 haptic feedback：`HapticFeedback.mediumImpact()`：iOS 上"按中"的物理反馈缺失
+- 远程 pose 长按的特殊 UX（避免显示轮廓半透明覆盖）：暂用回退方案
+
+---
 
 ### 〇十五 相机页布局重构 + 焦段 pill 交互（2026-06-27）✅ 完成
 

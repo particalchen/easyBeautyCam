@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:easy_beauty_cam/features/camera/state/pose_long_press_provider.dart';
 import 'package:easy_beauty_cam/features/camera/widgets/pose_thumb_strip.dart';
 import 'package:easy_beauty_cam/features/pose_library/pose_manager.dart';
 import 'package:easy_beauty_cam/features/pose_library/pose_model.dart';
@@ -194,6 +196,94 @@ void main() {
       expect(paths.length, 2);
       // 远程未选中：referenceAssetPath 是 null → 回退到 assetPath (URL)
       expect(paths[0], 'https://cdn.example.com/p.png');
+    });
+
+    testWidgets('长按第 2 张缩略图 → poseLongPressProvider 写入该 pose；松开后清空',
+        (tester) async {
+      final container = ProviderContainer(overrides: [
+        poseManagerProvider.overrideWith(
+          (ref) => _TestPoseManager(poses: _testPoses, selectedIndex: 0),
+        ),
+      ]);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const _TestApp(),
+        ),
+      );
+      await tester.pump();
+
+      // 手动模拟长按：按下 → 等长按识别 → 断言 → 松开
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(GestureDetector).at(1)),
+      );
+      // 等到 long-press timeout，onLongPressStart 触发并写入 provider
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+
+      // 长按期间：第 2 张 pose (local_02) 被写入
+      final pressed = container.read(poseLongPressProvider);
+      expect(pressed, isNotNull);
+      expect(pressed!.id, 'local_02');
+      expect(pressed.assetPath, 'resources/poses/pose_outdoor_02.png');
+
+      // 松开后：onLongPressEnd 触发，state 清空
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(container.read(poseLongPressProvider), isNull);
+    });
+
+    testWidgets('长按后松开（end 路径）→ poseLongPressProvider 清空',
+        (tester) async {
+      final container = ProviderContainer(overrides: [
+        poseManagerProvider.overrideWith(
+          (ref) => _TestPoseManager(poses: _testPoses, selectedIndex: 0),
+        ),
+      ]);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const _TestApp(),
+        ),
+      );
+      await tester.pump();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(GestureDetector).at(2)),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      expect(container.read(poseLongPressProvider), isNotNull,
+          reason: '长按识别后 provider 应该有值');
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(container.read(poseLongPressProvider), isNull);
+    });
+
+    testWidgets('点击（短按）不会触发长按态', (tester) async {
+      final container = ProviderContainer(overrides: [
+        poseManagerProvider.overrideWith(
+          (ref) => _TestPoseManager(poses: _testPoses, selectedIndex: 0),
+        ),
+      ]);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const _TestApp(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(GestureDetector).at(3));
+      await tester.pumpAndSettle();
+
+      // 短按不应写入长按态
+      expect(container.read(poseLongPressProvider), isNull);
     });
   });
 }
