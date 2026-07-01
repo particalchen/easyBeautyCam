@@ -38,7 +38,11 @@ void main() {
 
   group('mapTapToSensorFocusPoint', () {
     // 用户报的 bug：iPhone portrait + 16:9 sensor（previewSize 1920×1080），
-    // 点击 frame 中心，焦点偏到 sensor 边缘。本组测试覆盖换算正确性。
+    // 点击 frame 后焦点偏。本组测试覆盖换算正确性。
+    //
+    // 注意：本函数只做 FittedBox cover 反推裁切，**不做** sensor 旋转反变换——
+    // iOS `camera_avfoundation` plugin 内部已用 `cgPoint(for:withOrientation:)`
+    // 做了。返回的是 SizedBox/texture 归一化坐标，可直接喂 `setFocusPoint`。
     const frameAspect = 3 / 4; // CameraScreen 永远用 AspectRatio(3/4) 在逻辑层
     const sensorAspect16x9 = 16 / 9; // iOS 预览常见比例
     const sensorAspect4x3 = 4 / 3; // iPhone 后置拍照常见比例
@@ -55,108 +59,111 @@ void main() {
           isLandscape: isLandscape,
         );
 
-    test('portrait + 16:9 sensor：点击中心 (0.5, 0.5) → sensor 中心 (0.5, 0.5)', () {
-      final sensor = call(
+    test('portrait + 16:9 sensor：点击中心 (0.5, 0.5) → texture 中心 (0.5, 0.5)', () {
+      final p = call(
         tap: const Offset(0.5, 0.5),
         sensorAspect: sensorAspect16x9,
         isLandscape: false,
       );
-      expect(sensor.dx, closeTo(0.5, 1e-9));
-      expect(sensor.dy, closeTo(0.5, 1e-9));
+      expect(p.dx, closeTo(0.5, 1e-9));
+      expect(p.dy, closeTo(0.5, 1e-9));
     });
 
-    test('portrait + 16:9 sensor：点击左上 (0, 0) → sensor 右上 (0.875, 0)', () {
+    test('portrait + 16:9 sensor：点击左上 (0, 0) → texture (0, 0.125)', () {
       // 16:9 sensor → displayAspect = 9/16 = 0.5625；frame 0.75，cover 裁上下，
       // visibleHeightRatio = 0.75，cropTop = 0.125
-      // SizedBox 坐标 (0, 0.125)；portrait 90° 反向旋转 → (1 - 0.125, 0) = (0.875, 0)
-      final sensor = call(
+      // frame 顶部 → texture 顶部（可见区起点）= (0, 0.125)
+      final p = call(
         tap: Offset.zero,
         sensorAspect: sensorAspect16x9,
         isLandscape: false,
       );
-      expect(sensor.dx, closeTo(0.875, 1e-9));
-      expect(sensor.dy, closeTo(0.0, 1e-9));
+      expect(p.dx, closeTo(0.0, 1e-9));
+      expect(p.dy, closeTo(0.125, 1e-9));
     });
 
-    test('portrait + 16:9 sensor：点击右下 (1, 1) → sensor 左下 (0.125, 1)', () {
-      // SizedBox (1, 0.125 + 0.75 = 0.875)；90° 反向 → (1 - 0.875, 1) = (0.125, 1)
-      final sensor = call(
+    test('portrait + 16:9 sensor：点击右下 (1, 1) → texture (1, 0.875)', () {
+      // frame 底部 → texture 底部（可见区终点）= (1, 0.875)
+      final p = call(
         tap: const Offset(1, 1),
         sensorAspect: sensorAspect16x9,
         isLandscape: false,
       );
-      expect(sensor.dx, closeTo(0.125, 1e-9));
-      expect(sensor.dy, closeTo(1.0, 1e-9));
+      expect(p.dx, closeTo(1.0, 1e-9));
+      expect(p.dy, closeTo(0.875, 1e-9));
     });
 
-    test('portrait + 16:9 sensor：点击上边缘中点 (0.5, 0) → sensor 顶部 (0.875, 0.5)',
+    test('portrait + 16:9 sensor：点击上边缘中点 (0.5, 0) → texture (0.5, 0.125)',
         () {
-      final sensor = call(
+      // 〇十七 回归：之前双重旋转时这个 tap 会变成 sensor (0.875, 0.5)，
+      // 焦点比触摸点偏右下。修后只剩 cover 反推，y 落在 0.125（可见区顶部），
+      // X 跟触摸一致。
+      final p = call(
         tap: const Offset(0.5, 0),
         sensorAspect: sensorAspect16x9,
         isLandscape: false,
       );
-      expect(sensor.dx, closeTo(0.875, 1e-9));
-      expect(sensor.dy, closeTo(0.5, 1e-9));
+      expect(p.dx, closeTo(0.5, 1e-9));
+      expect(p.dy, closeTo(0.125, 1e-9));
     });
 
-    test('portrait + 4:3 sensor（无裁切）：center / 角落映射正确', () {
+    test('portrait + 4:3 sensor（无裁切）：tap 直接透传', () {
       // 4:3 sensor → displayAspect = 3/4 = frame aspect → cover 无裁切
-      // 旋转公式: (x, y) → (1 - y, x)
       expect(
         call(tap: const Offset(0.5, 0.5), sensorAspect: sensorAspect4x3, isLandscape: false),
         const Offset(0.5, 0.5),
-        reason: '无裁切时中心点旋转后还是中心',
       );
       expect(
         call(tap: Offset.zero, sensorAspect: sensorAspect4x3, isLandscape: false),
-        const Offset(1, 0),
-        reason: '左上 → sensor 右上',
+        Offset.zero,
+        reason: '无裁切 + 不旋转 = tap 透传',
       );
       expect(
         call(tap: const Offset(1, 1), sensorAspect: sensorAspect4x3, isLandscape: false),
-        const Offset(0, 1),
-        reason: '右下 → sensor 左下',
+        const Offset(1, 1),
+        reason: '无裁切 + 不旋转 = tap 透传',
       );
     });
 
-    test('landscape + 16:9 sensor：cover 裁左右，映射正确', () {
+    test('landscape + 16:9 sensor：cover 裁左右，X 偏移，Y 透传', () {
       // landscape: sizedBoxAspect = sensorAspect = 16/9 ≈ 1.78
       // frame 0.75，1.78 > 0.75 → cover 裁左右，匹配高度
-      // visibleWidthRatio = 0.75 / 1.78 = 0.4213...
-      // cropLeft = (1 - 0.4213) / 2 ≈ 0.2893
-      // landscape 显示 → sensor 旋转 180° → (1-x, 1-y)
+      // visibleWidthRatio = 0.75 / 1.78 ≈ 0.4219
+      // cropLeft = (1 - 0.4219) / 2 ≈ 0.2891
       const visibleWidthRatio = 0.75 / (16 / 9);
       const cropLeft = (1 - 0.75 / (16 / 9)) / 2;
-      // 点 (1, 0.5)：SizedBox (cropLeft + 1 * vwr, 0.5)；180° 反向 → (1 - (cropLeft+vwr), 1 - 0.5)
-      final rightEdgeSensor = call(
+
+      // 点 (0, 0.5)：frame 左边 → texture 可见区左缘 = (cropLeft, 0.5)
+      final leftEdge = call(
+        tap: const Offset(0, 0.5),
+        sensorAspect: sensorAspect16x9,
+        isLandscape: true,
+      );
+      expect(leftEdge.dx, closeTo(cropLeft, 1e-9));
+      expect(leftEdge.dy, closeTo(0.5, 1e-9));
+
+      // 点 (1, 0.5)：frame 右边 → texture 可见区右缘 = (cropLeft + vwr, 0.5)
+      final rightEdge = call(
         tap: const Offset(1, 0.5),
         sensorAspect: sensorAspect16x9,
         isLandscape: true,
       );
-      expect(rightEdgeSensor.dx, closeTo(1 - (cropLeft + visibleWidthRatio), 1e-9));
-      expect(rightEdgeSensor.dy, closeTo(0.5, 1e-9));
+      expect(rightEdge.dx, closeTo(cropLeft + visibleWidthRatio, 1e-9));
+      expect(rightEdge.dy, closeTo(0.5, 1e-9));
 
-      // 点 (0.5, 0.5)：SizedBox (cropLeft + 0.5 * vwr, 0.5)
-      final centerSensor = call(
+      // 点 (0.5, 0.5)：中心 → 中心 (对称变换)
+      final center = call(
         tap: const Offset(0.5, 0.5),
         sensorAspect: sensorAspect16x9,
         isLandscape: true,
       );
-      expect(centerSensor.dx, closeTo(1 - (cropLeft + 0.5 * visibleWidthRatio), 1e-9));
-      expect(centerSensor.dy, closeTo(0.5, 1e-9),
-          reason: 'y 不受裁切影响，仅做 180° 翻转；中心 y=0.5 翻完还是 0.5');
+      expect(center.dx, closeTo(cropLeft + 0.5 * visibleWidthRatio, 1e-9));
+      expect(center.dy, closeTo(0.5, 1e-9),
+          reason: 'Y 不受裁切影响，透传');
     });
 
-    test('边界值：sensorAspect == frameAspect 时两种方向都不裁切', () {
-      // 假设某种奇葩 sensor 比例正好和 frame 一致
-      // portrait 下 sizedBoxAspect = 1/0.75 = 1.333，与 frame 0.75 不等；但 frame > sizedBox 时不裁高度
-      // 直接用一个会触发 "frame >= sizedBox" 分支的：sensorAspect 让 sizedBoxAspect = frame
-      // portrait: sizedBoxAspect = 1/sensorAspect = 0.75 → sensorAspect = 4/3（已在上面覆盖）
-      // 这里改成手动指定 frameAspect 与 sizedBoxAspect 相等：
-      // call 框架里 displayFrameAspect 是 0.75，所以让 sizedBoxAspect = 0.75 也走 else 分支
-      // 简化：portrait + sensorAspect=4/3 已经在上面覆盖"无裁切"路径
-      // landscape + sensorAspect=0.75 时 sizedBoxAspect = 0.75 = frameAspect → 无裁切，180° 翻转
+    test('边界值：landscape + sensorAspect == frameAspect 时无裁切', () {
+      // landscape + sensorAspect=0.75 时 sizedBoxAspect = 0.75 = frameAspect → 无裁切
       final result = mapTapToSensorFocusPoint(
         tapInDisplayFrame: const Offset(0.5, 0.5),
         sensorAspect: 0.75,
@@ -164,7 +171,32 @@ void main() {
         isLandscape: true,
       );
       expect(result, const Offset(0.5, 0.5),
-          reason: '180° 翻转 + 中心点 = 自身');
+          reason: '无裁切 + 不旋转 = tap 透传');
+    });
+
+    test('回归：iOS plugin cgPoint（portrait）后 inverse 回 texture 应等于本函数 output', () {
+      // 〇十七 双重旋转 bug 的回归测试：
+      //   函数 output → iOS cgPoint → sensor → 90° CW inverse → texture
+      //   应等于函数 output（焦点显示位置 = 函数告诉 iOS 的位置）
+      //
+      // 模拟 iOS plugin 的 cgPoint(for:withOrientation: .portrait)：
+      //   input (x, y) → output (y, 1 - x)   （texture → sensor）
+      // sensor → texture（90° CW 视觉）：(x, y) → (1-y, x)
+      Offset iosCgPoint(Offset p) => Offset(p.dy, 1 - p.dx);
+      Offset sensorToTexture(Offset s) => Offset(1 - s.dy, s.dx);
+
+      for (final tap in [
+        Offset.zero,
+        const Offset(0.5, 0.5),
+        const Offset(1, 1),
+        const Offset(0.5, 0),
+        const Offset(0, 0.5),
+      ]) {
+        final output = call(tap: tap, sensorAspect: sensorAspect16x9, isLandscape: false);
+        final back = sensorToTexture(iosCgPoint(output));
+        expect(back.dx, closeTo(output.dx, 1e-9), reason: 'tap=$tap');
+        expect(back.dy, closeTo(output.dy, 1e-9), reason: 'tap=$tap');
+      }
     });
   });
 }

@@ -1,15 +1,84 @@
 # EasyBeautyCam 项目备忘
 
 > 创建时间：2026-06-05
-> 最后更新：2026-06-28
+> 最后更新：2026-07-02
 
 ---
 
-## 〇、最新进度（2026-06-28）
+## 〇、最新进度（2026-07-02）
 
-**最新**：〇十七 点击对焦坐标修正（反推 FittedBox cover 裁切 + sensor 旋转）
+**最新**：〇十七 第二轮 —— 删掉 mapTapToSensorFocusPoint 里多余的 sensor 旋转（plugin 自己转）
 
-### 〇十七 点击对焦坐标修正（2026-06-28）✅ 完成
+### 〇十七 第二轮：删掉多余 sensor 旋转（2026-07-02）✅ 完成
+
+**背景**：〇十七 第一轮（2026-06-28 commit 3a934e2）后真机再跑，X 轴准了但 Y 偏差仍在 —— 用户反馈"x轴没有差别，但是y轴比手指触摸的位置低一些"。
+
+翻 iOS `camera_avfoundation` plugin 源码（`DefaultCamera.swift:939`）找到根因：
+
+```swift
+// /Users/partical/.pub-cache/hosted/pub.dev/camera_avfoundation-0.9.23+2/.../DefaultCamera.swift:939
+private func cgPoint(for point: FCPPlatformPoint, withOrientation orientation: UIDeviceOrientation) -> CGPoint {
+  var x = point.x
+  var y = point.y
+  switch orientation {
+  case .portrait:  // 90 ccw
+    y = 1 - point.x
+    x = point.y
+  case .portraitUpsideDown:  // 90 cw
+    x = 1 - point.y
+    y = point.x
+  case .landscapeRight:  // 180
+    x = 1 - point.x
+    y = 1 - point.y
+  case .landscapeLeft:
+    // No rotation required
+    break
+  default:
+    // No rotation required
+    break
+  }
+  return CGPoint(x: x, y: y)
+}
+```
+
+`setFocusPoint` 内部用 `cgPoint(for:withOrientation:)` 按 `UIDevice.current.orientation` 把传入的显示坐标转成 sensor 坐标（portrait = 90° CCW 视觉旋转 `(x,y)→(y, 1-x)`）。**plugin 已经做了 sensor 旋转反变换**。我第一轮在 `mapTapToSensorFocusPoint` 里又转了一次 = 双重旋转，portrait 下焦点从用户点击位置往右下偏（Y 偏差比 X 大，因为 cover 裁切让 Y 坐标多走了 0.125 偏移）。
+
+**变更**：
+
+1. **`CameraService.mapTapToSensorFocusPoint()` 删掉 sensor 旋转反变换步骤**
+   - 只保留 cover 反推 → 返回 SizedBox（= texture）归一化坐标
+   - 函数 doc 同步更新，明确"不做 sensor 旋转，plugin 自己转"
+   - 函数名 `mapTapToSensorFocusPoint` 现在略有歧义（实际返回 texture 不是 sensor），先不改名避免 churn；用 doc 注明
+
+2. **测试更新**（`test/services/camera_service_test.dart`）：
+   - 7 个原测试更新预期值（去掉旋转后的新值）
+   - 新增 1 个回归测试：模拟 iOS plugin cgPoint 复合变换，验证 "function output → cgPoint → sensor → 90° CW inverse → texture" 应等于 function output（5 个 tap 位置）
+
+**验证（数学）**：iPhone portrait + 16:9 sensor 场景：
+- 点 (0, 0) → texture (0, 0.125) ✓ frame 顶部 → texture 可见区顶部
+- 点 (1, 1) → texture (1, 0.875) ✓ frame 底部 → texture 可见区底部
+- 点 (0.5, 0) → texture (0.5, 0.125) ✓ frame 上边缘中点 → texture 可见区上边缘中点
+- 点 (0.5, 0.5) → texture (0.5, 0.5) ✓ 中心透传
+- 经过 iOS plugin cgPoint 后 sensor → 再 90° CW inverse 回 texture 复合 = 原始 texture（回归测试覆盖）
+
+**影响文件**：
+- `lib/services/camera_service.dart`（`mapTapToSensorFocusPoint` 删掉旋转步骤，doc 同步更新）
+- `test/services/camera_service_test.dart`（7 个原测试更新预期 + 1 个新回归测试）
+
+**验证**：
+- `flutter analyze` 干净
+- `flutter test` 全量 146 个测试通过（之前 145 + 1 个新回归）
+- 真机验证：等 iPhone 16 Pro 重跑编译 + 各角落 tap，确认对焦框和触摸位置完全重合
+
+**未做（YAGNI）**：
+- 把"逻辑层 frame aspect"参数化：当前写死 3/4，与 `CameraScreen` 的 `AspectRatio` 耦合；如果未来改成 4:3 或可配置，需要把这个参数提取出来
+- Android 端的 `setFocusPoint` 是否也做方向转换：未验证；当前 iOS 跑通就够，如果 Android 也出现类似问题需要单独排查
+
+**教训**：当 platform plugin 已经做了某种坐标变换时，**不要在 Dart 端再重复做**。先看 plugin 源码再写转换函数。第一轮我猜"iOS 直接吃 sensor 坐标"是基于"focusPointOfInterest 是 sensor 空间"的常识，但具体到这个 plugin，setFocusPoint 内部已经转过了。下次写平台坐标转换前先翻 plugin 源码。
+
+---
+
+### 〇十七 点击对焦坐标修正（2026-06-28，第一轮）✅ 完成（含错）
 
 **背景**：〇十五 之后真机点 preview 对焦，发现点击位置和实际对焦位置不匹配——点 (0,0) 应该对到取景框左上角，实际焦点偏到 sensor 右上角附近（iPhone 16 Pro 上偏 10-15%）。问题源头：
 
@@ -19,7 +88,7 @@
 
 之前 `onTapUp` 直接把 frame 归一化点击坐标喂给 `setFocusPoint` / `setExposurePoint`，相当于跨坐标系传值——焦点必然错位。
 
-**变更**：
+**变更**（第一轮；后被第二轮修正为过头）：
 
 1. **新增 `CameraService.mapTapToSensorFocusPoint()` 纯函数**（`lib/services/camera_service.dart`）：把 frame 归一化点击坐标换算成 sensor 归一化坐标
    - 输入：`tapInDisplayFrame` + `sensorAspect`（`previewSize` 宽高比，横屏）+ `displayFrameAspect`（逻辑层 3/4）+ `isLandscape`
@@ -29,20 +98,10 @@
      2. **反推 sensor 旋转**：portrait 显示下 SizedBox 内容是 sensor 旋转 90° CCW，用 `(x, y) → (1-y, x)` 反变换；landscape 显示下 sensor 旋转 180°，用 `(x, y) → (1-x, 1-y)`
 
 2. **`CameraScreen._buildPreviewFrame` 的 `onTapUp`**：用 `mapTapToSensorFocusPoint` 把 frame 点击坐标换算成 sensor 坐标再喂给 `focusAndExposeAt`
-   - 取 `previewSize` 算 `rawAspect`（与 `_buildPreviewFrame` 既有的逻辑共用）
-   - `displayFrameAspect` 写死 `3/4`（`AspectRatio` 在逻辑层永远是 3:4）
-   - `isLandscape` 来自 `MediaQuery.of(context).orientation`
 
-**验证（数学）**：iPhone portrait + 16:9 sensor 场景：
-- 点 (0,0) → sensor (0.875, 0) ✓ 取景框左上对应 sensor 右上（90° CCW 后右上变左上）
-- 点 (1,1) → sensor (0.125, 1) ✓ 取景框右下对应 sensor 左下
-- 点 (0.5, 0.5) → sensor (0.5, 0.5) ✓ 中心对称变换后还是中心
-
-**新增测试**（7 个，`test/services/camera_service_test.dart` 追加）：
-- portrait + 16:9 sensor 中心 / 左上 / 右下 / 上边缘中点各 1 个
-- portrait + 4:3 sensor（无裁切路径）1 个
-- landscape + 16:9 sensor（裁左右路径）1 个
-- 边界：sensorAspect == frameAspect（两种方向都不裁切）1 个
+**验证（数学）**（第一轮，错版）：iPhone portrait + 16:9 sensor 场景：
+- 点 (0,0) → sensor (0.875, 0) — 这一步是对的（plugin 二次旋转后落到 frame 左上对应的 sensor 点）
+- 但 plugin 还会再转一次 90° CCW = 双重旋转，焦点从用户点击位置偏到右下
 
 **影响文件**：
 - `lib/services/camera_service.dart`（追加 `mapTapToSensorFocusPoint`）
@@ -52,15 +111,9 @@
 **验证**：
 - `flutter analyze` 干净
 - `flutter test` 全量 145 个测试通过（之前 138 + 7 个新测试）
-- 真机验证：待跑（编译 + iPhone 16 Pro 上点 preview 各角落，确认对焦框落在用户点的位置）
-
-**未做（YAGNI）**：
-- 单独写一个 e2e widget 测试模拟 `onTapUp` 整条链路：当前已经覆盖纯函数 + 之前的 `CameraScreen` 测试不涉及 tap；真机回归更直接
-- 把"逻辑层 frame aspect"参数化：当前写死 3/4，与 `CameraScreen` 的 `AspectRatio` 耦合；如果未来改成 4:3 或可配置，需要把这个参数提取出来
+- 真机验证：X 准了，Y 偏差仍在 → 触发第二轮修正
 
 ---
-
-### 〇十六 Pose 缩略图长按半透明预览（2026-06-28）✅ 完成
 
 ### 〇十六 Pose 缩略图长按半透明预览（2026-06-28）✅ 完成
 
