@@ -10,6 +10,9 @@
 ### Added
 - **Pose 缩略图长按半透明预览**。长按 `PoseThumbStrip` 任意缩略图不放，那张 pose 的 `-res` 彩色原图以 50% 不透明度覆盖在取景框上，长按期间取景框上的 pose 轮廓图（`PoseOverlay`）自动隐藏；松开或移出缩略图外松开后恢复原状，不影响当前选中的 pose。新增 `lib/features/camera/state/pose_long_press_provider.dart`（瞬时长按态 `StateNotifierProvider<PoseLongPressNotifier, PoseModel?>`）+ `lib/features/camera/widgets/pose_long_press_preview.dart`（`Positioned.fill + IgnorePointer + Opacity(0.5) + Image.asset`，与 PoseOverlay 互斥），`PoseOverlay` 开头加 long-press 检查让位，`PoseThumbStrip` 每个缩略图的 GestureDetector 增 `onLongPressStart` / `onLongPressEnd` / `onLongPressCancel` 三个回调（短按切换选区与长按预览并存，由 gesture arena 派发）。10 个新测试（4 个 provider 单测 + 3 个 preview widget + 3 个 strip 长按手势），全量 138 测试通过。
 
+### Fixed
+- **点击取景框对焦位置错位**（〇十七）。`onTapUp` 之前把 frame 归一化点击坐标直接喂给 `setFocusPoint` / `setExposurePoint`，但 iOS `focusPointOfInterest` 期望的是 sensor 归一化坐标（横屏方向），且 sensor 与 frame 比例不一致时 `FittedBox(BoxFit.cover)` 还会裁掉一部分（iPhone 16 Pro + 16:9 sensor 上下各裁 12.5%）。修正：新增 `CameraService.mapTapToSensorFocusPoint()` 纯函数做两步反变换——反推 cover 裁切找可见区域在 SizedBox 内的归一化坐标，再反推 sensor 旋转（portrait 90° CCW：`(x,y)→(1-y,x)`；landscape 180°：`(x,y)→(1-x,1-y)`）。`CameraScreen._buildPreviewFrame` 的 `onTapUp` 调用此函数把 frame 点击坐标换算成 sensor 坐标再喂给 `focusAndExposeAt`。iPhone portrait 上点 (0,0) 现在对到 sensor (0.875, 0)（取景框左上对应 sensor 右上），点 (0.5,0.5) 仍对到 sensor (0.5,0.5)。7 个新测试覆盖 portrait/landscape × 16:9/4:3 sensor × 中心/角落/边界，全量 145 测试通过。
+
 ## [Unreleased] — 2026-06-27
 
 ### Added

@@ -137,3 +137,68 @@ DeviceOrientation mapOrientationToDeviceOrientation(Orientation orientation) {
     Orientation.landscape => DeviceOrientation.landscapeLeft,
   };
 }
+
+/// 把取景框（AspectRatio frame）上的归一化点击坐标，换算成 AVFoundation
+/// `focusPointOfInterest` 期望的 sensor 归一化坐标（始终是 sensor 的横屏方向）。
+///
+/// 为什么要换：iOS/Android 的 `setFocusPoint` 接收的是 **sensor** 归一化坐标
+/// （landscape，0,0 = sensor 左上），而 `CameraPreview` 实际显示给用户的是经过
+/// 两步变换的取景框画面：
+///
+///   1. `FittedBox(BoxFit.cover)` 把 sensor 渲染进 AspectRatio frame，sensor
+///      比例（landscape 16/9）≠ frame 比例（portrait 3/4）时会上 / 下各裁掉
+///      一部分，**只有中间一段可见**；
+///   2. `lockCaptureOrientation` 让 plugin 把 sensor 顺时针 90° 旋到 portrait
+///      显示方向，所以 SizedBox 拿到的是 portrait 比例，**真正对应到 sensor
+///      还要再反向旋转回去**。
+///
+/// 直接把 frame 点击坐标喂给 `setFocusPoint`，焦点会落在 sensor 的边缘而不是
+/// 用户看到的中心附近（iPhone 16 Pro 上大约偏 10-15%）。
+///
+/// 参数：
+/// - [tapInDisplayFrame]：frame 内的归一化点击坐标，0,0 = frame 左上，1,1 = 右下
+/// - [sensorAspect]：`CameraController.value.previewSize` 的宽高比，**始终是横屏**
+///   （iOS plugin 报的就是横屏方向）；如果拿不到就用 `4/3` 兜底
+/// - [displayFrameAspect]：frame 的宽高比。当前 `CameraScreen` 用 `AspectRatio(3/4)`
+///   在逻辑层永远是 portrait，但旋转到物理显示后是 portrait 或 landscape，
+///   **这里传的是逻辑层 aspect（始终 3/4）**——FittedBox 在逻辑层工作
+/// - [isLandscape]：设备物理方向，决定是否需要 90° 反向旋转回 sensor
+///
+/// 返回 sensor 归一化坐标，可直接喂 `setFocusPoint` / `setExposurePoint`。
+Offset mapTapToSensorFocusPoint({
+  required Offset tapInDisplayFrame,
+  required double sensorAspect,
+  required double displayFrameAspect,
+  required bool isLandscape,
+}) {
+  // SizedBox 在显示方向上的比例。portrait 显示：sensor 横屏 → 1/sensorAspect；
+  // landscape 显示：sensor 已旋转 180° 但比例仍是横屏 → sensorAspect。
+  final sizedBoxAspect =
+      isLandscape ? sensorAspect : (1 / sensorAspect);
+
+  // Step 1: 反推 cover 裁切 → SizedBox 内的归一化坐标（仍是显示方向）
+  final double sizedBoxX;
+  final double sizedBoxY;
+  if (displayFrameAspect >= sizedBoxAspect) {
+    // frame 比 SizedBox 更"宽"（aspect 更大）→ cover 裁上下，宽度对齐
+    final visibleHeightRatio = sizedBoxAspect / displayFrameAspect;
+    final cropTop = (1 - visibleHeightRatio) / 2;
+    sizedBoxX = tapInDisplayFrame.dx;
+    sizedBoxY = cropTop + tapInDisplayFrame.dy * visibleHeightRatio;
+  } else {
+    // frame 比 SizedBox 更"窄"→ cover 裁左右，高度对齐
+    final visibleWidthRatio = displayFrameAspect / sizedBoxAspect;
+    final cropLeft = (1 - visibleWidthRatio) / 2;
+    sizedBoxX = cropLeft + tapInDisplayFrame.dx * visibleWidthRatio;
+    sizedBoxY = tapInDisplayFrame.dy;
+  }
+
+  // Step 2: portrait 显示下 SizedBox 内容是 sensor 旋转 90° CCW 得到的，
+  // 需要把 SizedBox 坐标反向旋转回 sensor 坐标
+  if (!isLandscape) {
+    // 90° CCW 反变换：(x, y) → (1-y, x)
+    return Offset(1 - sizedBoxY, sizedBoxX);
+  }
+  // landscape 显示下 sensor 旋转 180°，坐标两个轴都翻转
+  return Offset(1 - sizedBoxX, 1 - sizedBoxY);
+}

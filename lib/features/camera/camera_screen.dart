@@ -11,6 +11,7 @@ import '../../l10n/generated/app_localizations.dart';
 import 'camera_view_model.dart';
 import '../../services/camera_service.dart';
 import 'widgets/pose_overlay.dart';
+import 'widgets/pose_long_press_preview.dart';
 import 'widgets/app_circle_icon_button.dart';
 import 'widgets/app_menu_sheet.dart';
 import 'widgets/camera_controls.dart';
@@ -328,7 +329,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           (local.dy / size.height).clamp(0.0, 1.0),
         );
         _showFocusIndicator(point, size);
-        notifier.focusAndExposeAt(point);
+        // frame 点击坐标换算成 sensor 坐标（AVFoundation 的 focusPointOfInterest
+        // 用的是 sensor 空间，不是显示空间；详见 CameraService.mapTapToSensorFocusPoint）
+        final sensorPoint = mapTapToSensorFocusPoint(
+          tapInDisplayFrame: point,
+          sensorAspect: rawAspect,
+          displayFrameAspect: 3 / 4, // AspectRatio 写在逻辑层，永远 3/4
+          isLandscape: isLandscape,
+        );
+        notifier.focusAndExposeAt(sensorPoint);
       },
       child: Stack(
         fit: StackFit.expand,
@@ -346,6 +355,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ),
           if (_focusPoint != null) _buildFocusIndicator(),
           const PoseOverlay(),
+          // 长按 PoseThumbStrip 缩略图时的半透明 pose 原图覆盖层
+          const PoseLongPressPreview(),
         ],
       ),
     );

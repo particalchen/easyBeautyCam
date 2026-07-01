@@ -7,7 +7,58 @@
 
 ## 〇、最新进度（2026-06-28）
 
-**最新**：〇十六 Pose 缩略图长按半透明预览
+**最新**：〇十七 点击对焦坐标修正（反推 FittedBox cover 裁切 + sensor 旋转）
+
+### 〇十七 点击对焦坐标修正（2026-06-28）✅ 完成
+
+**背景**：〇十五 之后真机点 preview 对焦，发现点击位置和实际对焦位置不匹配——点 (0,0) 应该对到取景框左上角，实际焦点偏到 sensor 右上角附近（iPhone 16 Pro 上偏 10-15%）。问题源头：
+
+1. **`FittedBox(BoxFit.cover)` 裁切**：sensor 16/9（previewSize 1920×1080）≠ frame 3/4（`AspectRatio(3/4)`），cover 裁上下各 12.5%，只显示中间 75% 高度
+2. **portrait 显示旋转 90°**：sensor 是横屏，`lockCaptureOrientation(DeviceOrientation.portraitUp)` 让 plugin 把 texture 顺时针 90° CCW 旋到 portrait；用户看到的画面和 sensor 物理方向相差 90°
+3. `AVFoundation` 的 `focusPointOfInterest` 用的是 **sensor 归一化坐标**（横屏），不是显示空间
+
+之前 `onTapUp` 直接把 frame 归一化点击坐标喂给 `setFocusPoint` / `setExposurePoint`，相当于跨坐标系传值——焦点必然错位。
+
+**变更**：
+
+1. **新增 `CameraService.mapTapToSensorFocusPoint()` 纯函数**（`lib/services/camera_service.dart`）：把 frame 归一化点击坐标换算成 sensor 归一化坐标
+   - 输入：`tapInDisplayFrame` + `sensorAspect`（`previewSize` 宽高比，横屏）+ `displayFrameAspect`（逻辑层 3/4）+ `isLandscape`
+   - 输出：sensor 归一化 Offset，可直接喂 `setFocusPoint` / `setExposurePoint`
+   - 两步反变换：
+     1. **反推 cover 裁切**：根据 `displayFrameAspect` vs `sizedBoxAspect` 关系决定裁的是上下还是左右；找出可见区域在 SizedBox 内的归一化坐标
+     2. **反推 sensor 旋转**：portrait 显示下 SizedBox 内容是 sensor 旋转 90° CCW，用 `(x, y) → (1-y, x)` 反变换；landscape 显示下 sensor 旋转 180°，用 `(x, y) → (1-x, 1-y)`
+
+2. **`CameraScreen._buildPreviewFrame` 的 `onTapUp`**：用 `mapTapToSensorFocusPoint` 把 frame 点击坐标换算成 sensor 坐标再喂给 `focusAndExposeAt`
+   - 取 `previewSize` 算 `rawAspect`（与 `_buildPreviewFrame` 既有的逻辑共用）
+   - `displayFrameAspect` 写死 `3/4`（`AspectRatio` 在逻辑层永远是 3:4）
+   - `isLandscape` 来自 `MediaQuery.of(context).orientation`
+
+**验证（数学）**：iPhone portrait + 16:9 sensor 场景：
+- 点 (0,0) → sensor (0.875, 0) ✓ 取景框左上对应 sensor 右上（90° CCW 后右上变左上）
+- 点 (1,1) → sensor (0.125, 1) ✓ 取景框右下对应 sensor 左下
+- 点 (0.5, 0.5) → sensor (0.5, 0.5) ✓ 中心对称变换后还是中心
+
+**新增测试**（7 个，`test/services/camera_service_test.dart` 追加）：
+- portrait + 16:9 sensor 中心 / 左上 / 右下 / 上边缘中点各 1 个
+- portrait + 4:3 sensor（无裁切路径）1 个
+- landscape + 16:9 sensor（裁左右路径）1 个
+- 边界：sensorAspect == frameAspect（两种方向都不裁切）1 个
+
+**影响文件**：
+- `lib/services/camera_service.dart`（追加 `mapTapToSensorFocusPoint`）
+- `lib/features/camera/camera_screen.dart`（`onTapUp` 加换算一行）
+- `test/services/camera_service_test.dart`（追加 `mapTapToSensorFocusPoint` 测试组）
+
+**验证**：
+- `flutter analyze` 干净
+- `flutter test` 全量 145 个测试通过（之前 138 + 7 个新测试）
+- 真机验证：待跑（编译 + iPhone 16 Pro 上点 preview 各角落，确认对焦框落在用户点的位置）
+
+**未做（YAGNI）**：
+- 单独写一个 e2e widget 测试模拟 `onTapUp` 整条链路：当前已经覆盖纯函数 + 之前的 `CameraScreen` 测试不涉及 tap；真机回归更直接
+- 把"逻辑层 frame aspect"参数化：当前写死 3/4，与 `CameraScreen` 的 `AspectRatio` 耦合；如果未来改成 4:3 或可配置，需要把这个参数提取出来
+
+---
 
 ### 〇十六 Pose 缩略图长按半透明预览（2026-06-28）✅ 完成
 
