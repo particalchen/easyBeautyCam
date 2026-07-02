@@ -377,6 +377,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         final boxCenterGlobal = frameTopLeftGlobal +
             Offset(point.dx * size.width, point.dy * size.height);
 
+        // frame 顶部应该 ≈ status_bar + appbar + 8（Padding top）
+        // 如果 frameTLY 比这个和还大很多，说明布局里有别的 inset
+        // （比如 SafeArea 又叠了一层，或 RotatedBox 把坐标搞乱了）
+        final mediaPadding = MediaQuery.of(context).padding;
+        final frameTLY = frameTopLeftGlobal.dy;
+        final expectedFrameTLY = mediaPadding.top + 44 + 8; // status + AppBar + Padding(top:8)
+
         // sensorPoint 实际是 SizedBox(texture) 归一化坐标（iOS plugin 自己会做
         // cgPoint 旋转）。这里把它模拟跑一遍整条链，预测 iOS 实际对焦点的显示位置：
         //   texture → sensor: (tx, ty) → (ty, 1 - tx)   （cgPoint .portrait）
@@ -423,6 +430,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             'texBack=(${textureBack.dx.toStringAsFixed(3)},${textureBack.dy.toStringAsFixed(3)}) '
             'predNorm=(${predictedNorm.dx.toStringAsFixed(3)},${predictedNorm.dy.toStringAsFixed(3)}) '
             'rawAspect=${rawAspect.toStringAsFixed(3)} isL=$isLandscape',
+          )
+          ..writeln(
+            'frameTLY=${frameTLY.toStringAsFixed(0)} '
+            'expect=${expectedFrameTLY.toStringAsFixed(0)} '
+            '(status=${mediaPadding.top.toStringAsFixed(0)}+appBar=44+pad=8)',
           );
         _focusDebugInfo = info.toString();
         debugPrint('[_focus]\n$_focusDebugInfo');
