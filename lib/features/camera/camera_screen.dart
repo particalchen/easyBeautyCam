@@ -41,6 +41,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   double _gestureBaseZoom = 1.0;
   late final AnimationController _flashController;
   late final Animation<double> _flashAnimation;
+  // 临时调试用：最近一次对焦点击的坐标全流程信息（屏幕全局像素）
+  String _focusDebugInfo = '';
 
   @override
   void initState() {
@@ -122,24 +124,54 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       // AppBar 改为 null；自己在 body 内渲染，跟着 RotatedBox 转
       body: SafeArea(
         bottom: false,
-        child: RotatedBox(
-          quarterTurns: quarterTurns,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // RotatedBox 内部已经 swap 了 constraints：
-              //   landscape 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
-              //   portrait 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
-              // 所以这里直接用 constraints 即可，不要再手动 swap，否则会变成横屏形状。
-              return SizedBox(
-                key: const ValueKey('cameraContentSizedBox'),
-                width: constraints.maxWidth,
-                height: constraints.maxHeight,
-                child: cameraState.isInitialized
-                    ? _buildCameraView(cameraState, cameraNotifier, l10n)
-                    : _buildLoadingState(l10n),
-              );
-            },
-          ),
+        child: Stack(
+          children: [
+            RotatedBox(
+              quarterTurns: quarterTurns,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // RotatedBox 内部已经 swap 了 constraints：
+                  //   landscape 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
+                  //   portrait 时 LayoutBuilder 看到的是 portrait 形状 (宽 < 高)
+                  // 所以这里直接用 constraints 即可，不要再手动 swap，否则会变成横屏形状。
+                  return SizedBox(
+                    key: const ValueKey('cameraContentSizedBox'),
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: cameraState.isInitialized
+                        ? _buildCameraView(cameraState, cameraNotifier, l10n)
+                        : _buildLoadingState(l10n),
+                  );
+                },
+              ),
+            ),
+            // 临时调试：对焦坐标文本框放在 RotatedBox 外面，
+            // 这样 landscape 时不会跟着旋转，文字始终正立。
+            if (_focusDebugInfo.isNotEmpty)
+              Positioned(
+                left: 8,
+                top: 8,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _focusDebugInfo,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'Menlo',
+                        fontFamilyFallback: ['Courier', 'monospace'],
+                        fontSize: 11,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -338,6 +370,63 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           isLandscape: isLandscape,
         );
         notifier.focusAndExposeAt(sensorPoint);
+
+        // ===== 临时调试：把全部坐标都转成屏幕全局像素，便于肉眼看差距 =====
+        final frameTopLeftGlobal = box.localToGlobal(Offset.zero);
+        final tapGlobal = box.localToGlobal(local);
+        final boxCenterGlobal = frameTopLeftGlobal +
+            Offset(point.dx * size.width, point.dy * size.height);
+
+        // sensorPoint 实际是 SizedBox(texture) 归一化坐标（iOS plugin 自己会做
+        // cgPoint 旋转）。这里把它模拟跑一遍整条链，预测 iOS 实际对焦点的显示位置：
+        //   texture → sensor: (tx, ty) → (ty, 1 - tx)   （cgPoint .portrait）
+        //   sensor → 显示方向（90° CW 视觉）: (sx, sy) → (1 - sy, sx)
+        //   texture → frame（forward cover crop 反变换）
+        final sensorOnChip = Offset(sensorPoint.dy, 1 - sensorPoint.dx);
+        final textureBack = Offset(1 - sensorOnChip.dy, sensorOnChip.dx);
+        final sizedBoxAspect = isLandscape ? rawAspect : (1 / rawAspect);
+        const displayFrameAspect = 3 / 4;
+        double frameX, frameY;
+        if (displayFrameAspect >= sizedBoxAspect) {
+          final visibleHeightRatio = sizedBoxAspect / displayFrameAspect;
+          final cropTop = (1 - visibleHeightRatio) / 2;
+          frameX = textureBack.dx;
+          frameY = (textureBack.dy - cropTop) / visibleHeightRatio;
+        } else {
+          final visibleWidthRatio = displayFrameAspect / sizedBoxAspect;
+          final cropLeft = (1 - visibleWidthRatio) / 2;
+          frameX = (textureBack.dx - cropLeft) / visibleWidthRatio;
+          frameY = textureBack.dy;
+        }
+        final predictedNorm = Offset(
+          frameX.isFinite ? frameX.clamp(0.0, 1.0) : 0.5,
+          frameY.isFinite ? frameY.clamp(0.0, 1.0) : 0.5,
+        );
+        final predictedGlobal = frameTopLeftGlobal +
+            Offset(
+              predictedNorm.dx * size.width,
+              predictedNorm.dy * size.height,
+            );
+
+        final info = StringBuffer()
+          ..writeln(
+            'tap=(${tapGlobal.dx.toStringAsFixed(0)},${tapGlobal.dy.toStringAsFixed(0)}) '
+            'box=(${boxCenterGlobal.dx.toStringAsFixed(0)},${boxCenterGlobal.dy.toStringAsFixed(0)}) '
+            'pred=(${predictedGlobal.dx.toStringAsFixed(0)},${predictedGlobal.dy.toStringAsFixed(0)})',
+          )
+          ..writeln(
+            'pt=(${point.dx.toStringAsFixed(3)},${point.dy.toStringAsFixed(3)}) '
+            'tex=(${sensorPoint.dx.toStringAsFixed(3)},${sensorPoint.dy.toStringAsFixed(3)}) '
+            'sensor=(${sensorOnChip.dx.toStringAsFixed(3)},${sensorOnChip.dy.toStringAsFixed(3)})',
+          )
+          ..writeln(
+            'texBack=(${textureBack.dx.toStringAsFixed(3)},${textureBack.dy.toStringAsFixed(3)}) '
+            'predNorm=(${predictedNorm.dx.toStringAsFixed(3)},${predictedNorm.dy.toStringAsFixed(3)}) '
+            'rawAspect=${rawAspect.toStringAsFixed(3)} isL=$isLandscape',
+          );
+        _focusDebugInfo = info.toString();
+        debugPrint('[_focus]\n$_focusDebugInfo');
+        if (mounted) setState(() {});
       },
       child: Stack(
         fit: StackFit.expand,
